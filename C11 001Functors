@@ -1,0 +1,104 @@
+
+
+Functors are things that can be mapped over, like lists, Maybes, trees, and such. In Haskell, they're described by the typeclass Functor, 
+which has only one typeclass method, namely fmap, which has a type of fmap :: (a -> b) -> f a -> f b. 
+
+fmap says: 
+        give me a function that takes a and returns  b                (a -> b), and 
+        a box with an "a" (or several of them) inside it,             -> f a    and
+        i'll give you a box with a "b" (or several of them) inside it -> f b .
+
+ It kind of applies the function to the element inside the box.
+
+We can also look at functors as things that output values in a context. For instance, 
+    Just 3 outputs the value 3 in the context that it might or not output any values at all. 
+    [1,2,3] outputs three values—1, 2, and 3, the context is that there may be multiple values or no values.
+    The function (+3) will output a value, depending on which parameter it is given.
+
+
+ If we want to make a type constructor an instance of Functor, it has to have a kind of * -> *, which means that it has to take exactly one concrete type as a type parameter. 
+ For example, Maybe can be made an instance because it takes one type parameter to produce a concrete type, like Maybe Int or Maybe String.
+ If a type constructor takes two parameters, like Either, we have to partially apply the type constructor until it only takes one type parameter.
+
+ So we can't write instance Functor Either where, but we can write "instance Functor (Either a) where" and then if we imagine that fmap is only for Either a, 
+ it would have a type declaration of fmap :: (b -> c) -> Either a b -> Either a c. As you can see, the Either a part is fixed, because Either a takes only one type parameter, 
+ whereas just Either takes two so fmap :: (b -> c) -> Either b -> Either c wouldn't really make sense.
+
+
+ Another instance of Functor that we've been dealing with all along but didn't know was a Functor is (->) x
+
+ remember that: 2 + 3 is the same as (+) 2 3, and
+                (2+)  is the same as (+) 2      partially applied function
+                i.e.  let i = (+) 2 ; i 3 ==> will print 5
+
+
+So,  x->y is the same as (->) x y, and 
+    (x->) is the same as (->) x            partially applied type constructor, just like Either a
+
+
+    instance Functor ((->) r) where  
+        fmap f g = (\x -> f (g x))  
+
+    let's think about fmap's type. It's fmap :: (a -> b) -> f a -> f b. Now what we'll do is mentally replace all the f's, 
+    which are the role that our functor instance plays, with (->) r's
+
+    fmap :: (a -> b) -> ((->) r a) -> ((->) r b). 
+    or
+    fmap :: (a -> b) -> (r -> a) -> (r -> b).
+
+    Mapping one function over a function has to produce a function, just like mapping a function over a Maybe has to produce a Maybe and 
+    mapping a function over a list has to produce a list. 
+
+    we see that it takes a function from a to b and a function from r to a and returns a function from r to b. 
+
+    in math we have ff(y)=z,    f(x)=y  ==>  ff (f(x)) = z 
+    in haskell     (a -> b) -> (r -> a) ->   (r -> b)
+
+
+Another way to write this instance would be:
+    instance Functor ((->) r) where  
+        fmap = (.)  
+    
+    ghci>  let g = fmap (*3) (+100)  
+    ghci>  let g = (*3) `fmap` (+100) $ 1  
+
+    ghci>  let g = (*3) . (+100) $ 1
+
+    ghci>  g 1
+
+
+
+    ((+) <$> (+3) ) 1 2      
+    ((+) `fmap` (+3) $ 1) 2  ==> because <$>  = fmap
+    ((+) . (+3) $ 1) 2       ==> because fmap = .    definition of "instance Functor ((->) r) where  fmap = (.)"
+
+
+
+The expression   fmap (replicate 3)   will take a functor over any type and return a functor over a list of elements of that type
+
+    ghci>  fmap (replicate 3) (Just 2)
+    Just [2,2,2]
+    ghci>  fmap (replicate 3) (Nothing)
+    Nothing
+
+Functor laws
+
+    In order for something to be a functor, it should satisfy some laws. They should reliably behave as things that can be mapped over. 
+    
+
+    The first functor law states that if we map the id function over a functor, the functor that we get back should be the same as the original functor. 
+    example:
+        ghci>  map (\x->x) [1,2,3]
+        [1,2,3]
+        ghci>  map id [1,2,3]
+        [1,2,3]
+        Remember that: id is just a standard library function that takes a parameter and returns the same thing, It can also be written as \x -> x. 
+
+
+    The second law says that composing two functions and mapping that over a functor should be the same as first mapping one function over the functor and then mapping the other one. 
+    For any functor F, the following should hold: fmap (f . g) F = fmap f (fmap g F).
+    example:
+    ghci>  map ((*3).(+100)) [1,2,3]
+    [303,306,309]
+    ghci>  map (*3) (  map (+100) [1,2,3]  )
+    [303,306,309]

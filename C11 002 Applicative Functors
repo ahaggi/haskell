@@ -1,0 +1,354 @@
+Applicative Functors 
+
+As we know, we can call a function as f x y or as (f x) y. 
+This enables us to partially apply functions by just calling them with too few parameters
+
+So far, when we were mapping functions over functors, we usually mapped functions that take only one parameter. 
+
+fmap (\x->x*3) [1,2,3]
+
+What happens when we map over a functor with a function that takes more than one param? for ex fmap (\x y->x*y) [1,2,3]
+
+    fmap (*) (Just 3) results in   Just ((*) 3),          which is   Just(\x->3*x)
+    fmap (*) [1,2,3]  results in   [(*1) ,(*2) ,(*3)],    which is   [ (\x->1*x), (\x->2*x), (\x->3*x) ]
+
+By mapping "multi-parameter" functions over functors, we get functors that contain functions inside them. 
+
+ghci>  let fs = fmap (\x y->x*y) [1,2,3]                       [ (\y->1*y), (\y->2*y), (\y->3*y) ]
+ghci>  fmap (\ f -> f 2) fs             -- Notice that the lambda takes a function as param
+[2,4,6]
+
+When we mapped \f -> f 9 over a functor that contained functions inside it, we were just mapping a normal function over it
+
+
+But what if we have a functor value of Just (3 *) and a functor value of Just 5 and we want to take out the function from Just (3 *) and map it over Just 5? 
+Or Mapping [(*1) ,(*2) ,(*3)] over another functor [2] ,,, The solution is "Applicative typeclass"
+
+
+
+Applicative typeclass
+
+    "Applicative" is subclass of "Functor",, "Tringle" is subclass of "shape"
+
+    TLDR; if functors are "box" that can be mapped over with a function                      
+                            i.e.   map someFunction  someBox ,, where someBox is Maybe, [], Map ..etc
+          applicative (are special type of functor) which allows to map over a functor with another functor which contains functions ,,, BOTH FUNCTORS HAS TO BE THE SAME TYPE
+                            i.e.   boxOfFunction <*> someBox ,, where BOTH  boxOfFunction and someBox  FUNCTORS HAS TO BE THE SAME TYPE, they both can be Maybe, [], Map, (->) b ..etc
+                            extract the content of "boxOfFunction" and mapped it over "someBox"
+
+    It lies in the Control.Applicative module and it defines two methods, pure and <*>. 
+    We have to define them both if we want something to be an applicative functor. The class is defined like so:
+            class (Functor f) => Applicative f where
+                pure :: a -> f a
+                (<*>) :: f (a -> b) -> f a -> f b
+
+    f is our applicative functor
+    "(Functor f) =>" 
+            says that if we want to make a type constructor part of the Applicative typeclass, it has to be in Functor first. 
+            Remember that: setting constrain on a typeClass' decleration is saying  "Applicative" is subclass of "Functor"
+            and both of <*>'s parameters are functors. 
+
+    pure :: a -> f a 
+            takes a value of any type and return an applicative functor with that value inside it. 
+    (<*>) :: f (a -> b) -> f a -> f b 
+            <*> takes a functor that has a function in it and another functor and extracts that function from the first functor and then maps it over the second one.
+             f (a -> b)  a functor that has a function in it
+             f a         a functor with some type "a"
+             f b         a functor with some type "b"
+     
+
+
+
+    A better way of thinking about pure would be to say that it takes a value and puts it in some sort of default (or pure) context,
+    a minimal context that still yields that value. 
+        ghci>  pure 2 :: [Int]
+        [2]
+        ghci>  pure 2 :: Maybe Int
+        Just 2
+
+
+    For ex minimal context for lists would be the empty list, [], but the empty list represents the lack of a value, 
+    so it can't hold in itself the value that we used pure on. That's why pure takes a value and puts it in a singleton list. 
+    pure 8 ==> [8] ,, singleton list is a minimal context
+
+
+    (<$>) :: (Functor f) => (a -> b) -> f a -> f b  
+    f <$> x = fmap f x  
+    Reminder: while the f in (Functor f) is type variables, that has nothing to do with the f in f <$> x = fmap f x this f is a param
+              The fact that we used f to represent both of those doesn't mean that they somehow represent the same thing.
+
+**********************************************************************************************************
+
+    Let's take a look at the Applicative instance Monoid  Maybe
+
+        instance Applicative Maybe where  
+            pure = Just                                -- a-> f a ,, pure 5 => Just 5 ,, pure take something and wrap it in an applicative functor
+            Nothing <*> _ = Nothing                    -- We can't extract a function out of a Nothing
+            (Just f) <*> something = fmap f something  -- something is a "Maybe a" value i.e. Maybe "str", Maybe 1 or Nothing,, fmap with any function over a Nothing will return a Nothing
+                                                          f (a -> b)  ->    f a    ->      f b
+                                                          (Just f)       something    (fmap f something)
+
+
+    ghci>  Just (+3) <*> Just 9  
+    Just 12
+    ghci>  pure (+3) <*> Just 9     -- Notice pure (+3) = Just (+3)
+    Just 12  
+
+    Notice the diffrence between
+
+    ghci>  Just (+3) <*> Nothing
+    Nothing                      -- this Nothing is a result of "(Just f) <*> something = fmap f something"  fmap with any function over a Nothing will return a Nothing
+    ghci> Nothing <*> Just "woot"  
+    Nothing                      -- this Nothing is a result of "Nothing <*> _ = Nothing"
+
+
+
+
+    What if we have "Just 3" and "Just [4]". How do we get Just [3,4]? 
+
+        ghci> (:) <$> Just 3 <*> Just [4]   ==>  3:[4]
+        Just [3,4]  
+
+        Remember, ":" is a function that takes an element and a list and returns a new list with that element at the beginning. 
+
+
+**********************************************************************************************************
+
+    Let's take a look at the Applicative instance implementation for List
+
+        instance Applicative [] where  
+            pure x = [x]  
+            fs <*> xs = [f x | f <- fs, x <- xs]       -- if fs and xs each has 3 elems, how many elems will this comprehension produce?? 9 
+
+
+
+        [(*)]  <*>  [1,2,3]   <*> [10,100,1000]
+        [(*1) ,(*2) ,(*3)]    <*> [10,100,1000]
+        [10,100,1000,20,200,2000,30,300,3000]
+
+
+
+    Applicative functors, allows you to operate on several functors with a single function. 
+
+
+
+    instead of 
+        fmap (\ f -> f 2) ( fmap (\x y->x*y) [1,2,3] )
+    we can do
+        ghci>  pure (*) <*> [1,2,3] <*> [2]     -- pure (*) ==>  [(*)]
+        ghci>  [(*)] <*> [1,2,3]  <*> [2]       -- [(*)] <*> [1,2,3]     ==> [(*1) ,(*2) ,(*3)]
+        ghci>  [(*1) ,(*2) ,(*3)] <*> [2]
+
+        ghci>  (*) <$> [1,2,3]    <*> [2]       -- (*)  <$> [1,2,3]      ==> [(*1) ,(*2) ,(*3)]
+        ghci>  fmap (*) [1,2,3]   <*> [2]       -- fmap (*) [1,2,3]      ==> [(*1) ,(*2) ,(*3)]
+
+        [2,4,6]
+
+
+
+       [(*)] <*> [1,2,3] <*> [10,100]             fmap (*) [1,2,3] <*> [10,100,1000]             (*) <$> [1,2,3] <*> [10,100,1000]          [ x*y | x <- [1,2,3], y <-[10,100,1000]]
+                                                                       [10,100,1000,20,200,2000,30,300,3000]
+
+
+       pure f <*> xs                 fmap f xs                f <$> xs
+    [(*2)] <*> [1,2,3]           fmap (*2) [1,2,3]        (*2) <$> [1,2,3]
+
+
+    <$> is just fmap as an infix operator.
+
+
+    If we have a list of functions that take two parameters, we can apply those functions between two lists
+    [(+),(*)] <*> [1,2]     <*>   [10,100]         How many elems the res will have??  8 elems
+    [(1+),(2+),(1*),(2*)]   <*>   [10,100]
+
+    [11, 101, 12, 102, 10, 100, 20, 200]
+
+
+**********************************************************************************************************
+
+
+
+What if we want to apply [(+3),(*2)] to [1,2] in such a way that the first function in the left list gets applied to the first
+value in the right one, the second function gets applied to the second value, and so on. 
+
+Let's take a look at the Applicative instance implementation for ZipList 
+
+    instance Applicative ZipList where
+            pure x = ZipList (repeat x)
+            ZipList fs <*> ZipList xs = ZipList (zipWith (\f x -> f x) fs xs)   --Because of how zipWith works, the resulting list will be as long as the shorter of the two lists.
+
+    pure "haha" results in ZipList (["haha","haha","haha".... repeating indefinitely
+
+    if pure (*2) just returned   ZipList [2], the result of    pure (*2) <*> ZipList [1,5,10]  will be ZipList [2], 
+    because the resulting list of two ZipList has the length of the shorter of the two.
+
+
+The "ZipList a" type doesn't have a Show instance, so we have to use the getZipList function to extract a raw list out of a zip list.
+
+ghci> getZipList $ (+) <$> ZipList [1,2,3] <*> ZipList [100,100..]
+[101,102,103]  
+ghci> getZipList $ max <$> ZipList [1,2,3,4,5,3] <*> ZipList [5,3,1,2]
+[5,3,3,4]
+
+
+
+**********************************************************************************************************
+
+
+
+Let's take a look at the Applicative instance implementation for (->) r 
+                                                                 You can read more abt (->) r in C11 001Functors
+
+    instance Applicative ((->) r) where
+        pure x = (\_ -> x)                -- return a FUNCTION which takes and ignores one param and returns x 
+        f <*> g = \x -> f x (g x)
+
+
+        (pure 3) "blah" ==> (\param -> 3)  where param is "blah"
+        pure 3 "blah"   ==> (\param -> 3)  where param is "blah"
+
+
+
+        f <*> g = \x -> f x (g x)       THIS IS NOT COMPOSITION, for that read "C11 001Functors"
+
+        Calling <*> with 2 applicative functors results in an applicative functor, 
+
+        syntax:
+        say we have a function (+) let's call it k, and it takes 2 param:
+            1.st param is f = (\x-> x+3)
+            2.nd param is g = (\x-> x*100)
+
+        Så  k <$> f <*> g $5 is   pure k <*> f <*> g $5
+
+
+            pure(+) <*> (+3) <*> (*100) $ 5    =    (+) <$> (+3) <*> (*100) $ 5    =     (+) `fmap` (+3) <*> (*100) $ 5
+
+
+            (+) <$> (+3) <*> (*100) $ 5
+            (+) `fmap` (+3) <*> (*100) $ 5
+            (+)   .    (+3) <*> (*100) $ 5                 |   f  .  g = \x -> f (g x)
+            (\x -> (+) (x+3)  ) <*> (\x->x*100) $ 5        |   f <*> g = \x -> f x (g x) 
+            (\x -> (+) (x+3) (x*100) )  $ 5
+
+
+            which is eqv of
+
+            k (f 5) (g 5) 
+            or
+
+            let param = fmap (\fn -> fn 5) [(+3) , (*100)]
+            (+) (head param) (last param)
+        = 508
+
+
+        Remember that:
+            ((+) <$> (+3) ) 1 2      
+            ((+) `fmap` (+3) ) 1 2  ==> because <$>  = fmap
+            ((+)    .   (+3) ) 1 2       ==> because fmap = .    definition of "instance Functor ((->) r) where  fmap = (.)"
+
+
+    But why (+) <*> (+3) <*> (*100) $ 5 does NOT work??
+        if we see the definition of <*> :
+            it takes 2 function and returns a lambda which take ONLY one param so,
+            (+) <*> (+3) ... => (\x-> (+) x ((+3) x) ) ....  ==> (\x -> x + (3+x)) ...
+            next
+            (\x -> x + (3+x)) <*> (*100) which will not work becuse if we say f is (\x -> x + (3+x)) which takes only one param, but f <*> g = f x (g x) which ,means f has to take 2 param x and (g x)
+
+    But this will work
+            (+) <*> (+3) $ 5           -- because f is (+) which takes 2 param
+            (\f x -> f+x) <*> (+3) $ 5
+            (\x   -> (x+3) + x) $ 5
+
+
+(\x y z -> [x,y,z]) <$> (+3) <*> (*2) <*> (/2) $ 5
+
+this means
+ ...................... (5+3)  (5*2)  (5/2)      --The 5 gets fed to each of the three functions 
+ if k is (\x y z -> [x,y,z])
+ so k (5+3)  (5*2)  (5/2) equals
+
+[8.0,10.0,2.5]
+
+
+
+**********************************************************************************************************
+*                                          Important                                                     *
+**********************************************************************************************************
+
+
+Putting a function inside a functor to create an applicative pure fn  to get (f fn)
+
+                                                 (*)  <*>   Functor
+    pure (*) <*> Functor                         (*) `fmap` Functor                          Applicative (*)
+pure (*) <*> [1,2,3] <*> [4,5]                (*) `fmap` [1,2,3] <*> [4,5]            [(*)]   <*> [1,2,3] <*> [4,5]
+pure (*) <*> Just 8 <*> Just 9                          ......                        Just(*)  <*> Just 8 <*> Just 9
+pure (:) <*> Just 3 <*> Just [4]                        ......                        Just (:) <*> Just 3 <*> Just [4]
+pure (+) <*> (+3) <*> (*100) $ 5              (+) <$> (+3) <*> (*100) $ 5             (\x -> (+) (x+3)  ) <*> (*100) $ 5
+
+
+getZipList $ pure (+)              <*> ZipList [1,2,3] <*> ZipList [100,100..]
+getZipList $      (+)              <$> ZipList [1,2,3] <*> ZipList [100,100..]
+getZipList $ ZipList [(+),(+),(+)] <*> ZipList [1,2,3] <*> ZipList [100,100..] -- [(+),(+),(+)] due to resulting list of two ZipList has the length of the shorter of the two
+
+
+We can replace all the `fmap` with <$> or `liftM` ,, Mind the infixity "C13 Monads More6 - liftM ap liftA2 liftM3."
+We can replace all the <*> with `ap`
+More about these "Monad-functions" (liftA2, liftM2, liftM3, liftM4 and liftM5) in "C13 Monads More6 - liftM ap liftA2 liftM3."
+
+
+**********************************************************************************************************
+**********************************************************************************************************
+
+
+Important difference between the many Applicative instances' implementations for <*>, we will use the our own function  sequenceA'
+
+sequenceA' [ functor of type list ]
+    -- ghci>  sequenceA' [[1,2,3],[4,5,6]]
+    -- [[1,4],[1,5],[1,6],[2,4],[2,5],[2,6],[3,4],[3,5],[3,6]]
+    (:) <$> x ...                       | <$> = fmap
+    (:) `fmap` [1,2,3] ...              |  fmap :: (a -> b) -> f a -> f b
+    [(1:) , (2:) , (3:)] ... 
+    [(1:) , (2:) , (3:)] <*> sequenceA' [[4,5,6]]           |   But for The Sake Of Simplicity let look at  "sequenceA' [[4,5,6]]" first
+    [(1:) , (2:) , (3:)] <*> (:) `fmap` [4,5,6] ...                     
+    [(1:) , (2:) , (3:)] <*> [(4:) , (5:) , (6:)] <*> sequenceA' []  |   sequenceA' [] = pure []
+    [(1:) , (2:) , (3:)] <*> [(4:) , (5:) , (6:)] <*> [[]]            
+    [(1:) , (2:) , (3:)] <*> [(4:[]) , (5:[]) , (6:[])]              |   x:[] = [x]
+    [(1:) , (2:) , (3:)] <*> [[4] , [5] , [6]]                       |   fs <*> xs = [f x | f <- fs, x <- xs] which means take a "f" and apply it to all of x<-xs
+
+    [(1:[4]) ,(1:[5]) ,(1:[6]) , (2:[4]) ,(2:[5]) ,(2:[6]) , (3:[4]) , (3:[5]) , (3:[6])]            |   x:[] = [x]
+    =
+    [[1,4],[1,5],[1,6],[2,4],[2,5],[2,6],[3,4],[3,5],[3,6]]
+
+sequenceA' [ functor of type Maybe ]
+    sequenceA' [Just 3, Just 4]
+    (:)  <$>   Just 3 <*>...            | <$> = fmap
+    (:) `fmap` Just 3 <*>...            | fmap :: (a -> b) -> f a -> f b
+    Just (3:) <*> sequenceA' [Just 4]
+    Just (3:) <*> ( Just (4:[]) )
+    Just (3:) <*> ( Just (4:[]) )       | (Just f) <*> justSomething = fmap f justSomething
+    Just (3:(4:[]))
+    =
+    Just [3,4]
+
+
+
+**********************************************************************************************************
+
+
+Applicative functors laws:
+
+    pure f <*> x = fmap f x 
+        pure puts a value in a default context. If we just put a function in a default context of a functor "let's say Maybe"
+        pure (+3)  <*> Just 1 =? fmap (+3) (Just 1)  
+        On the right hand side we have <*> which have "Maybe implementation" of (Just f) <*> something = fmap f something
+        it's "extract" the f from (Just f) and apply it with  (fmap f something), so:
+        pure (+3)  <*> Just 1 becomes fmap (+3) (Just 1)
+        pure (+3)  <*> Just 1 is equals fmap (+3) (Just 1)
+
+
+
+
+    pure id <*> v = v
+    pure (.) <*> u <*> v <*> w = u <*> (v <*> w)
+    pure f <*> pure x = pure (f x)
+    u <*> pure y = pure ($ y) <*> u

@@ -1,0 +1,407 @@
+Haskell 
+
+environments:
+https://www.haskell.org/downloads#stack
+
+Minimal installers
+Minimal installers provide centrally the GHC compiler and the Cabal and Stack tools for installing packages
+
+or
+
+Stack "better option"
+Stack is a cross-platform build tool for Haskell that handles management of the toolchain (including the GHC compiler and MSYS2 on Windows), building and registering libraries, and more.
+
+
+
+5 * -3 will make GHCI yell at you but doing 5 * (-3) will work just fine
+
+.hs 5 /= 5 ==>  .c 5 != 5 
+
+
+infix function
+We can define functions to be infix, by making them comprised of only special characters. 
+For instance 2 * 3 , * is a function that takes two numbers and multiplies them. As you've seen, we call it by sandwiching it between them. 
+
+
+prefix function
+In Haskell, functions are usually prefix. Prefix functions are called by writing the function name, a space and then the parameters, separated by spaces. In most imperative languages functions are called by writing the function name and then writing its parameters in parentheses, usually separated by commas.
+For instance succ 9, function takes anything that has a defined successor and returns that successor.
+
+5 * -3
+cannot mix ‘*’  and prefix `-' in the same infix expression
+
+5 * (-3)
+OK
+
+(succ 9) + (max 5 4) + 1
+OK
+
+BUT
+
+succ 9 * 10  IS NOT LIKE 	succ (9 * 10)                100 is not eql to 91
+
+
+Difining an infix function
+		infixl 5 <:  
+		(<:) :: Num a => a -> a -> a
+		x <: y = (x*y) + (x*y)
+		
+		A fixity states how tightly the operator's precedence and whether it's left-associative or right-associative. 
+		For instance, *'s fixity is infixl 7 * and +'s fixity is infixl 6. That means that they're both left-associative (4 * 3 * 2 is (4 * 3) * 2) 
+		But * binds tighter than +, because it has a (greater fixity / higher precedence), so 5 * 4 + 3 is (5 * 4) + 3.
+
+Calling prefix as infix function:
+
+	If a function takes two parameters, we can also call it as an infix function by surrounding it with backticks. For instance, the div function takes two integers and does integral division between them. Doing div 92 10 results in a 9. But when we call it like that, there may be some confusion as to which number is doing the division and which one is being divided. So we can call it as an infix function by doing 92 `div` 10 and suddenly it's much clearer.
+
+	div 92 10   is the same as   92 `div` 10
+
+ 
+
+Calling infix as prefix function:
+	If we want to examine infix function's type, pass it to another function or call it as a prefix function, we have to surround it in parentheses.
+	(==) 2 2 ==> true
+	:t (==) ==> (==) :: (Eq a) => a -> a -> Bool
+
+foo(), bar(1) or baz(3, "haha") in C ==> foo, bar 1, baz 3 "haha" in haskell
+
+let keyword: We can use the let keyword to define a name right in GHCI. Doing let a = 1 inside GHCI is the equivalent of writing a = 1 in a script and then loading it. 
+
+
+
+
+if is Expression:
+
+	if "statement" in Haskell is an expression. An expression is basically a piece of code that returns a value. the same as dart,, but in haskell else is mandatory 
+
+	doubleSmallNumber x = (if x > 100 then x else x*2) + 1
+
+Lists:
+
+  Operators:
+	++ operator: putting two lists together    list1 ++ list2 = list
+				 Haskell has to walk through the whole list on the "left side" of ++. That's not a problem when dealing with lists that aren't too big. But putting something at the end of a list that's fifty million entries long is going to take a while. 
+				 [1,2,3,4] ++ [9,10,11,12] => [1,2,3,4,9,10,11,12] 
+
+	:  operator: adding an elem to the beginning of a list    elm : list1 = list
+				 using the : operator (also called the cons operator) is instantaneous.
+				 5:[1,2,3,4] = [5,1,2,3,4] 
+
+	!! operator: If you want to get an element by index, use !!. 
+				 [9.4,33.2,96.2,11.2,23.25] !! 1 => 33.2
+
+
+	Lists can also contain lists. They can also contain lists that contain lists that contain lists …
+
+		The lists within a list can be of different lengths but they can't be of different TYPES. Just like you can't have a list that has some characters and some numbers, you can't have a list that has some lists of characters and some lists of numbers.
+
+		Example:
+		xs = [ [1,1,1] , [2] , [3,3] ]
+		xs ++ [ [4,4,4] ] =>  [ [1,1,1] , [2] , [3,3] , [4,4,4] ]   notice  list ++ list NOT [4,4,4] ++ [ [1,1,1] , .. ]
+		[5,5] : xs    =>      [ [5,5] , [1,1,1] , [2] , [3 ... ]    notice  elm : list
+
+
+
+	head: takes a list and returns its first element
+	last: takes a list and returns its last element
+	tail: takes a list and returns everything except its head
+	init: takes a list and returns everything except its tail 
+
+	When using head, tail, last and init, be careful not to use them on empty lists. This error cannot be caught at compile time so it's always good practice to take precautions against accidentally telling Haskell to give you some elements from an empty list.
+
+	length: takes a list and returns its length
+	null: checks if a list is empty. returns boolean. Use this function instead of xs == [] 
+	reverse: reverses a list
+	take: take num list :  returns list with the first n elems from the beginning of the list  
+	drop: drop num list :  returns list without the first n elems from the beginning of the list
+	elem  100 [3,4,100,6]  or  100 `elem` [3,4,100,6] returns a boolean, true if elem exists,,, In dart (someList.IndexOf(elm) != -1)  ==>true/false
+
+		Example:
+		xs = [1,2,3,4]
+
+		head xs => 1
+		last xs => 4
+		tail xs => [2,3,4]
+		init xs => [1,2,3]
+		null xs => true
+
+		take 20 xs => [1,2,3,4] returns the first 20 elems or the whole list
+		drop 100 xs => [] returns a list without first 100 elems or an empty list 
+		elem 
+  Comparing lists:
+	Lists can be compared if the stuff they contain can be compared. When using <, <=, > and >= to compare lists, they are compared in lexicographical order. First the heads are compared. If they are equal then the second elements are compared, etc.
+
+	ghci> [3,2,1] > [2,10,100]  
+	True  
+	ghci> [3,4,2] > [3,4]  
+	True  
+
+  Ranges
+    To make a list containing all the natural numbers from 1 to 20, you just write [1..20]. Ranges are a way of making lists that are arithmetic sequences of elements that can be enumerated. Numbers can be enumerated. One, two, three, four, etc. Characters can also be enumerated. The alphabet is an enumeration of characters from A to Z. 
+
+    ['a'..'z']  a,b,c,..z OK
+    ['K'..'Z']  OK
+    ['a', 'c' ..'z'] a,c,e,g..y OK
+    ['aa', 'bb'..'zz'] error
+
+    Watch out when using floating point numbers in ranges! Because they are not completely precise (by definition), their use in ranges can yield some pretty funky results
+
+    ghci> [0.1, 0.3 .. 1]  
+    [0.1,0.3,0.5,0.7,0.8999999999999999,1.0999999999999999]  --wrong res
+
+  Infinite list
+    [1,2..]
+
+    First 24 multiples of 13:
+      [13,26..24*13]
+      or
+      take 24 [13,26..] 
+        Take the 1st. 24 num of the INFINITE list,, because Haskell is lazy, it won't try to evaluate the infinite list immediately because it would never finish. It'll wait to see what you want to get out of that infinite lists. And here it sees you just want the first 24 elements and it gladly obliges
+
+    cycle: takes a list and cycles it into an infinite list. 
+      take 10 (cycle [1,2,3])  =>  [1,2,3,1,2,3,1,2,3,1]
+
+    repeat: takes an element and produces an infinite list of just that element
+      take 10 (repeat 5)   =>   [5,5,5,5,5,5,5,5,5,5]
+      same as
+      replicate 5 10       =>   [5,5,5,5,5,5,5,5,5,5]
+
+
+Comprehension
+∈ in math   is    <- in haskell
+	 
+
+	Let say we have a set a = {1,2,..,10}
+	In math  {2 * x | x ∈ a}
+
+	In Haskell we can do 
+		take 10 [2,4..]
+		[2,4..20]
+
+		[x*2 | x <- [1..10]]  for every element in [1..10] apply the function 2*x
+
+
+
+  Predicate
+
+    doubles of the first 10 natural numbers
+	  In math {2 * x | x ∈ N , x<=10}
+	  In Haskell, we can NOT do
+	 	[x*2 | x <- [1,2..], x<10]
+	 	becuase that will result in appling the func 2*x to the infinite list 
+
+
+  	All numbers from 50 to 100 whose remainder when divided with the number 7 is 3
+      In math { x |  x ∈ N , 50 >= x <= 100 , x mod 7 = 3 }
+  	  In Haskell [ x | x <- [50..100], x `mod` 7 == 3]
+
+
+  	Let's say we want a comprehension that replaces each odd number greater than 10 with "BANG!" and each odd number that's less than 10 with "BOOM!". If a number isn't odd, we throw it out of our list.
+
+	    boomBangs xs = [ if x < 10 then "BOOM!" else "BANG!" | x <- xs, odd x ] ,, odd num ==> boolean
+
+	    boomBangs [7..13] ==> ["BOOM!","BOOM!","BANG!","BANG!"]
+
+	Several predicates:
+	All numbers from 10 to 20 that are not 13, 15 or 19, we'd do:
+		[ x | x <- [10..20], x /= 13, x /= 15, x /= 19]
+
+	Several lists:
+	A list produced by a comprehension that draws from two lists of length 3 will have a length of 9, 
+		[ x*y | x <- [1,2,3], y <- [10,20,30]]
+		[10,20,30,20,40,60,30,60,90]
+
+	What if we wanted all possible products that are more than 50?
+		[ x*y | x <- [1,2,3], y <- [10,20,30] , x*y > 50]
+		[60,60,90]
+
+	How about a list comprehension that combines a list of adjectives and a list of nouns … for epic hilarity.
+	    ghci> let nouns = ["hobo","frog","pope"]  
+	    ghci> let adjectives = ["lazy","grouchy","scheming"]  
+
+	    ghci> [adjective ++ " " ++ noun | adjective <- adjectives, noun <- nouns] 
+
+	    ["lazy hobo","lazy frog","lazy pope","grouchy hobo","grouchy frog",  
+	    "grouchy pope","scheming hobo","scheming frog","scheming pope"]   
+
+	Replace every elems in some list with the num 1
+		rplc xs = [1 | _ <- xs]
+		rplc  ["BOOM!","BOOM!","BANG!","BANG!"] => [1,1,1,1]
+		
+
+	Let's write our own version of length! We'll call it length'
+		length' xs = sum [1 | _ <- xs]
+
+	Regex engine for all words which starts with an uppercase ["Aqwe" , "aqwe" , "aQewr" , "dsf" , "Dsdf" , "dSdf"]
+		Just a friendly reminder: because strings are lists, we can use list comprehensions to process and produce strings
+	
+		regxOnlyFirstLetterUpperCase xs = [ x | x <- xs , head x `elem` ['A'..'Z'] ] -- x is String witch is a list of char
+		
+		regxOnlyFirstLetterUpperCase ["Aqwe" , "aqwe" , "aQewr" , "dsf" , "Dsdf" , "dSdf"]
+		["Aqwe","Dsdf"]
+
+Nested list comprehensions 
+
+	onlyEven xs = [ x | x <- xs, even x ]
+	onlyEven [1..6]  => [2,4,6]  OK
+
+	What if we have list of lists
+	[[1,3,5,2,3,1,2,4,5],[1,2,3,4,5,6,7,8,9],[1,2,4,2,1,6,3,1,3,2,3,6]]
+
+	onlyEvenXXs xxs =[ onlyEven xs | xs <- xxs] ==> [[2,2,4],[2,4,6,8],[2,4,2,6,2,6]]
+
+	OR 
+
+	onlyEvenXXs xxs = [ [ x | x <- xs, even x ] | xs <- xxs]
+
+Tuples "a collection of tuple"
+
+	lists: doesn't matter if it has only one or an infinite numbers.
+	tuples: are used when you know exactly how many values
+
+	lists: a list of numbers is a list of numbers. That's its type.
+	tuples: its type depends on how many components it has and the types of the components
+
+	representing vector with a list
+		[[1,2] , [8,11] , [4,5]] OK 
+		[[1,2] , [8,11,5] , [4,5]] although y has 3 coordinates, the compiler will consider this as valid list of lists 
+
+	representing vector with a tuple
+	  tuple of size two is its own type, which means that a list can't have a couple of pairs in it and then a triple (a tuple of size three)
+		[(1,2) , (8,11) , (4,5)] OK 
+		[(1,2) , (8,11,5) , (4,5)]   Couldn't match expected type `(t, t1)'  against inferred type `(t2, t3, t4)', where t=1, t1=2, t2=8, t3=11..
+
+	[("1",2),("One",2)]  OK
+	[("xxxxxxxxxx",2),("One",2)]  OK
+	[(1,2),("One",2)] Not valid because the first tuple is a pair of numbers and the second tuple is a pair consisting of a string and a number 
+
+
+  Use tuples when you know in advance how many components some piece of data should have. Tuples are much more rigid because each different size of tuple is its own type, so you can't write a general function to append an element to a tuple — you'd have to write a function for appending to a pair, one function for appending to a triple, one function for appending to a 4-tuple, etc.
+
+  Like lists, tuples can be compared with each other if their components can be compared. Only you can't compare two tuples of different sizes, whereas you can compare two lists of different sizes. Two useful functions that operate on pairs:
+
+	fst (8,11)  ==> 8 
+	snd (8,11)  ==> 11
+	these functions operate only on pairs. They won't work on triples, 4-tuples, 5-tuples, etc
+
+	zip xs xs returns a tuple 
+	zip  [1..] ["apple", "orange", "cherry", "mango"] ==> [(1,"apple"),(2,"orange"),(3,"cherry"),(4,"mango")]
+
+
+  Find all the right triangles where all sides under or equals to 10
+  	[ (a,b,c) | c <- [1..10], b <- [1..c], a <- [1..b], a^2 + b^2 == c^2]
+
+
+
+
+Types 
+
+  If you want to give your function a type declaration but are unsure as to what it should be, you can always just write the function without it and then check it with :t. Functions are expressions too, so :t works on them without a problem.
+
+	:t command which, followed by any valid expression, tells us its type
+
+		ghci>  generateListDart n fn = [ fn x | x <- [1..n]]
+		ghci>  :t generateListDart
+		generateListDart :: (Num t, Enum t) => t -> (t -> a) -> [a]
+
+		 :: is read as "has type of"
+
+  Common types
+
+	Int: stands for integer. Int is bounded, which means that it has a minimum -(2^31), and a maximum value (2^31)-1. 
+	Integer: stands for, er … also integer. The main difference is that it's not bounded so it can be used to represent really really big numbers.
+	Float: is a real floating point with single precision.
+	Double is a real floating point with double the precision.
+	Bool
+	Char
+
+	doubelx :: Num a => a -> a
+	doubelx x  = x + x
+
+	doubelx :: Int -> Int
+	doubelx x  = x + x
+
+  Polymorphic functions,, the "a"
+   
+      ghci> :t head  
+	  head :: [a] -> a  
+    "a" is type variable, this is much like generics in other languages
+    Although type variables can have names longer than one character, we usually give them names of a, b, c, d …
+
+
+
+
+Typeclasses 
+
+    A typeclass is a sort of interface that defines some behavior. If a type is a part of a typeclass, that means that it supports and implements the behavior the typeclass describes.
+
+	ghci> :t (==)  
+	(==) :: (Eq a) => a -> a -> Bool                     -- => symbol is called a class constraint
+	
+	The equality function takes any two values that are of the same type and returns a Bool. The constraint is: As long as the type of those two values must be a member of the Eq class (this was the class ).
+
+  Some basic typeclasses:
+	
+	Eq: typeclass provides an interface for testing for equality. Any type where it makes sense to test for equality between two values of that type should be a member of the Eq class. So if there's an Eq class constraint for a type variable in a function, it uses == or /= somewhere inside its definition.
+
+	Ord: is for types that have an ordering. covers all the standard comparing functions such as >, <, >= and <=. The compare function takes two Ord members of the same type and returns an ordering. 
+
+	Ordering is a type that can be GT, LT or EQ.
+
+	Show: It takes a value whose type is a member of Show and presents it to us as a string. The "function show" are member of "Show typeclass"
+
+	Read: is sort of the opposite typeclass of Show. The read function takes a string and returns a type which is a member of Read. The "function read" are member of "Read typeclass"
+
+		read "5" Err: Ambiguous type variable `a' in the constraint ,,, 
+					  GHCI doesn't know which of "Read Typeclass" members we want in return,, is it Int, is it Float or what??
+		read "5" :: Int ==> 5 OK 
+				Type annotations are a way of explicitly saying what the type of an expression should be. We do that by adding :: at the end of the expression and then specifying a type
+		read "5" :: Float ==> 5.0  OK
+
+		read "5" - 2 ==> 3 OK    GHCI could infer what kind of result we wanted out of our read becuase the infix "-"
+
+	Enum members are sequentially ordered types — they can be enumerated. They also have defined successors and predecesors, which you can get with the succ and pred functions.
+
+		ghci> ['a'..'e']  
+		"abcde"  
+		
+		ghci> [LT .. GT]  
+		[LT,EQ,GT] ,, lessThan , eq , greaterThan
+
+		succ 9 ==> 10
+		succ 'B' ==> 'C'
+		succ LT ==> EQ
+
+	Bounded members have an upper and a lower bound.
+
+	Num is a numeric typeclass. Its members have the property of being able to act like numbers. 
+
+	Integral is also a numeric typeclass.
+
+	Floating includes only floating point numbers
+
+	Recap
+
+		Int ---------- type
+		Integral------ typeclass
+		Float -------- type
+		Floating ----- typeclass
+		Num ---------- typeclass
+
+	Casting Int type or a member of Integral Typeclass, to Num Typeclass
+		
+		3 / 2 ==> 1.5 OK                            
+		length [1,2,3,4] / 2 ==> Err
+
+		fromIntegral (length [1,2,3]) / 2 ==> 1.5 OK 
+
+		:t( / ) ==> (Fractional a) => a -> a -> a
+
+
+
+
+
+
+
+
+  

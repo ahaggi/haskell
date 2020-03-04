@@ -1,0 +1,41 @@
+
+Reverse Polish notation calculator
+
+    10 - (4 + 3) * 2
+    is the same as 
+    10 4 3 + 2 * -
+
+
+    think of a stack. You go over the expression from left to right. Every time a number is encountered, push it on to the stack. 
+    When we encounter an operator, take the two numbers that are on top of the stack.
+
+
+solveRPN 
+    function that takes as its parameter a string that contains a RPN expression, like "10 4 3 + 2 * -" and gives us back its result
+
+    Protip: it really helps to first think what the type declaration of a function should be before concerning ourselves with the implementation and then write it down. 
+    In Haskell, a function's type declaration tells us a whole lot about the function, due to the very strong type system.
+
+    solveRPN :: (Num a) => String -> a
+
+    foldl foldingFunction [] . words "10 4 3 + 2 * -"
+
+        use words "10 4 3 + 2 * -" to get ["10","4","3","+","2","*","-"]
+
+        use foldl: folding function will take a stack and an item and return a new stack
+
+        use [] as accumulator. The accumulator is our stack, the result from the fold will also be a stack, it will only have one item.
+
+        foldingFunction: will have 4 diffrent usecases:
+            "*", take the first 2 numbers in the acc and * them together
+            "+",  
+            "-" 
+            NumberAsString: in this case "read" the number and attach the result to the list 
+                    ["10","4","3","+","2","*","-"] at the start
+                    after the first recursive call of foldl will be   read "10": [] ==> [10], where the [] is the acc
+                    
+
+
+
+    
+

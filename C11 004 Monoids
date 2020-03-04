@@ -1,0 +1,427 @@
+Monoids and their superclass Semigroup 
+
+    Type classes in Haskell are used to present an interface for types that have some behavior in common. 
+    If it makes sense for values of our type to be equated, we make it an instance of the Eq type class. If we see that our type is some kind of functor, 
+    we make it an instance of Functor, and so on.
+
+
+**********************************************************************************************************************************************************************
+                                                                                Updated
+**********************************************************************************************************************************************************************
+    NOTE : 'Semigroup' is a superclass of 'Monoid' since /base-4.11.0.0/   March 2018
+
+    Monoid extends Semigroup and adds a default or fallback value for the given type. 
+        To make a type an instance of Semigroup, there has to be (1) an associative binary function which operate on that type. (OneRule)
+        
+        To make a type an instance of Monoid, there has to be (1) a value of that type acts as the identity with respect to the binary function and 
+        (2) that the binary function has to be associative. (2Rules) "the 2nd rule is the same rule of the superClass Semigroup"  
+
+            A monoid is when you have an "associative" "binary" function and a value which acts as an "identity" with respect to that function.
+
+            - Binary function: function which takes two parameters. f x y
+
+            -The function is associative: when we have three or more values and we want to use the binary function to reduce them to a single result, 
+                the order in which we apply the binary function to the values doesn't matter. 
+                (2*3)*4 = 2*(3*4)     OR   ("ab" ++ "cd") ++ "ef" = "ab" ++ ("cd" ++ "ef")
+                
+            -identity: There exists such a value acts as an identity with respect to a function, that doesn't change other values when used with that function
+                if we multiply some number with 1, the result is always equal to that other number. 
+                if we add an empty list [] to another list, the result is always equal to that other list.
+
+            -The parameters and the returned value have the same type.
+                Int * Int = Int  [a] ++ [a] = [a]
+**********************************************************************************************************************************************************************
+**********************************************************************************************************************************************************************
+**********************************************************************************************************************************************************************
+
+
+
+What is the practical use of monoids?
+Read ... C11 004 What is the practical use of monoids?
+         C11 004 Monoids Haskell for all_ Scalable program architectures
+         C11 004 semi-monoid.pdf
+
+    What the hell is it for ?
+
+    Monoid is a functional programming constructs that embodies the notion of combining “things” together, often in order to reduce “things” into one “thing”. 
+    Given that the combining operation is associative, it can be parallelized.
+
+    And that’s a BIG deal.
+
+    As a simple illustration, this is what you can do, absolutely fearlessly when you know your type A forms a monoid under combine with identity id:
+
+        You have a huge, large, massive list of As that you want to reduce into a single A
+        You have a cluster of N nodes and a master node
+        You split your huge, large, massive list of As in N sub lists
+        You distribute each sub list to a node of your cluster
+        Each node reduce its own sub list by combining its elements 2 by 2 down to 1 final element
+        They send back their results to the master node
+        The master node only has N intermediary results to combine down (in the same order as the sub lists these intermediary results were produced from, remember, associativity !) to a final result
+
+    You successfully, without any fear of messing things up, parallelized, almost for free, a reduction process on a huge list thanks to monoids.
+
+
+
+
+----------------------------------
+
+class Semigroup a where
+    (<>) :: a -> a -> a
+    sconcat :: NonEmpty m -> m
+    stimes :: Integral b => b -> a -> a
+
+class (Semigroup m) => Monoid m where
+    mempty :: m
+    mappend :: (Semigroup m) => m -> m -> m
+    mappend = (<>)  
+    mconcat :: [m] -> m
+    mconcat = foldr mappend mempty
+
+
+
+Only concrete types can be made instances of Monoid, because the m in the type class definition doesn't take any type parameters. By other words m can't be "type constructor"
+
+mempty :: m
+mempty represents the identity value for a particular monoid.
+It's not really a function, since it doesn't take parameters, so it's a polymorphic constant, kind of like "minBound" from "Bounded". 
+
+mappend :: m -> m -> m
+is the binary function. It takes two values of the same type and returns a value of that type as well.
+
+mconcat :: [m] -> m
+It takes a list of monoid values and reduces them to a single value 
+
+Because the default implementation is fine for most instances, we won't concern ourselves with mconcat too much from now on. 
+When making a type an instance of Monoid, it suffices to just implement mempty and mappend. 
+
+
+To make a type an instance of Monoid, there has to be a value of that type acts as the identity with respect to the binary function and 
+that the binary function has to be associative.
+    mempty `mappend` x = x
+    x `mappend` mempty = x
+    (x `mappend` y) `mappend` z = x `mappend` (y `mappend` z)
+
+One way for numbers to be considered monoids. Just have the binary function be * and the identity value 1. 
+Another way is to have the binary function be + and the identity value 0
+
+
+Haskell doesn't enforce these laws, so we as the programmer have to be careful when we make ourOwnType an instance of Monoid that ourOwnType do indeed obey them. 
+
+----------------------------------
+List are Semigroup under the associative binary function (++)
+List are monoids
+    
+    using the binary function ++ 
+        the identity is []
+        the mappend is "mappend [1] [2,3] = [1] ++ [2,3]"
+        
+    instance Semigroup [a] where
+        (<>) = (++)
+
+    instance Monoid [a] where  
+        mempty = []
+        mappend = (<>)
+      -- mconcat = foldr mappend mempty  -- we don't need to implement this, it's already defined in Monoid typeClass
+
+    Notice that we wrote instance Monoid [a] and not instance Monoid [], because Monoid requires a concrete type for an instance. 
+
+    Notice that monoids don't require that a `mappend` b be equal to b `mappend` a. 
+
+
+    Test it:
+        ghci> [1,2,3] `mappend` [4,5,6]  
+        [1,2,3,4,5,6]  
+        ghci> "one" `mappend` ("two" `mappend` "tree")  
+        "onetwotree"  
+        ghci> "pang" `mappend` mempty  
+        "pang"  
+        ghci> mconcat [[1,2],[3,6],[9]]  -- eqv of foldl (++) [] [[1,2],[3,6],[9]]  
+        [1,2,3,6,9]  
+
+----------------------------------
+
+Product and Sum
+
+One way for numbers to be considered monoids. Just have the binary function be * and the identity value 1. 
+Another way is to have the binary function be + and the identity value 0
+
+So when making numbers instance of Monoid, what is the implementation of:
+    -mempty: is it 0 or 1 ?
+    -mappend: is it (*) or (+) ?
+
+Remember, when there are several ways for some type to be an instance of the same type class, we can wrap that type in a newtype and 
+then make the new type an instance of the type class in a different way. 
+
+    newtype Product a =  Product { getProduct :: a }  deriving (Eq, Ord, Read, Show, Bounded)  
+
+
+    instance (Num a) => Semigroup (Product a) where
+        Product x <> Product y = Product (x * y)
+
+    instance (Num a) => Monoid (Product a) where
+        mempty = Product 1
+      -- mconcat = foldr mappend mempty  -- we don't need to implement this, it's already defined in Monoid typeClass
+
+    -- Notice Num a class constraint, that means "Product a" can be an instance of Monoid for all a's that are already an instance of Num
+
+
+The same for sum
+... 
+    Sum x <> Sum y = Sum (x + y)  
+....    
+    mempty = Sum 0  
+...
+
+----------------------------------
+
+Any and All
+
+Another type which can act like a monoid in two distinct but equally valid ways is Bool.
+we can make a bool an instance of Monoid in many ways 
+
+
+"Any" using the binary function ||
+    the identity is "false", becuase of: someBool || false = someBool
+    the mappend is "mappend a b = a||b"
+
+newtype Any = Any { getAny :: Bool } deriving (Eq, Ord, Read, Show, Bounded)  
+
+instance Semigroup Any where  
+    (<>) = (||)      --  Any x <> Any y = Any (x || y)
+
+instance Monoid Any where  
+        mempty = Any False  
+        mappend = (<>)  
+      -- mconcat = foldr mappend mempty  -- we don't need to implement this, it's already defined in Monoid typeClass
+
+ghci> getAny . mconcat . map Any $ [False, False, False, True]  
+True  
+ghci> getAny $ mempty `mappend` mempty  
+False  
+
+
+
+"All" using the binary function &&
+    the identity is "true", becuase of: someBool && true = someBool
+    the <> is &&
+
+----------------------------------
+
+The Ordering monoid
+
+"Ordering" using the binary function "compare"
+    the identity is "EQ",           why??!!
+    the mappend ... "ReadMore if necessary"
+
+
+instance Monoid Ordering where  
+    LT <> _ = LT  
+    EQ <> y = y  
+    GT <> _ = GT  
+
+instance Monoid Ordering where  
+    mempty = EQ  
+    mapped = (<>)
+
+so how is this monoid useful? Let's say you were writing a function that takes two strings, compares them, and returns an Ordering. 
+The ordering is dependent on :
+    - the length of the strings, if they're EQ,
+    - the num of vowels, if they're EQ,
+    - compare them alphabetically
+
+
+lengthCompare x y = let a = length x `compare` length y
+                        c = x `compare` y
+                        vowels = length . filter (`elem` "aeiou")
+                        b = vowels x `compare` vowels y
+                    in  if a == EQ
+                            then (if b == EQ
+                                    then c
+                                    else b)
+                            else a
+
+But by employing our understanding of how Ordering is a monoid, we can rewrite this function in a much simpler manner:
+
+lengthCompare x y = (length x `compare` length y) `mappend`
+                    (vowels x `compare` vowels y) `mappend`
+                    (x `compare` y)
+            where vowels = length . filter (`elem` "aeiou")
+
+
+    ghci> lengthCompare "zen" "ants"
+    LT
+    ghci> lengthCompare "zen" "ant"
+    GT
+
+
+----------------------------------
+
+Maybe the monoid
+
+"Maybe a" using the binary function of the (Monoid a)
+    if a is a list the binary function ++ and the identity is []
+    if a is a ourOwn "Any" the binary function || and the identity is "False"
+    if a is a ourOwn "All" the binary function && and the identity is "True"
+    
+    instance Semigroup a => Semigroup (Maybe a) where
+        Nothing <> b       = b
+        a       <> Nothing = a
+        Just a  <> Just b  = Just (a <> b)
+
+        -- stimes ... https://hackage.haskell.org/package/semigroups-0.18.1/docs/src/Data.Semigroup.html#%3C%3E
+
+
+    instance (Monoid a) => Monoid (Maybe a) where
+        mempty = Nothing
+        mapped = (<>)
+
+
+-- Notice the class constraint. It says that Maybe a is an instance of Monoid only if a is an instance of Monoid. 
+
+
+If we mappend something with a Nothing, the result is that something. If we mappend two Just values, the contents of the Justs get mappended
+and then wrap the result in a Just
+
+ghci> Nothing `mappend` Just "andy"  
+Just "andy"  
+ghci> Just LT `mappend` Nothing  
+Just LT  
+
+
+----------------------------------
+
+
+Using monoids to fold data structures
+
+One of the more interesting ways to put monoids to work is to make them help us define folds over various data structures. 
+So far, we've only done folds over lists, but we can define folds over almost any data structure. Trees especially lend themselves well to folding.
+
+Much like Functor is for things that can be mapped over, Foldable is for things that can be folded up! 
+
+list foldr vs Foldable foldr
+
+    ghci> :t foldr  
+    foldr :: (a -> b -> b) -> b -> [a] -> b             --(a -> b -> b) take an elem and accumulator and return accumulator
+    ghci> :t F.foldr  
+    F.foldr :: (F.Foldable t) => (a -> b -> b) -> b -> t a -> b  
+
+
+Data.Foldable accepts any type that can be folded up, not just lists! 
+
+Remember the tree data structure from the Making Our Own Types and Typeclasses chapter? 
+we're going to make it an instance of Foldable so that we get the abilty to fold it up. 
+One way to make a type constructor an instance of Foldable is to just directly implement:
+    foldr 
+    OR
+    foldMap     --if we just implement foldMap for some type, we get Foldable.foldr and Foldable.foldl on that type for free!
+ 
+foldMap function has the following type:
+
+    foldMap :: (Monoid m, Foldable t) => (a -> m) -> t a -> m  
+
+    Its first parameter is a function that takes a value of the type that our foldable structure contains (denoted here with a) and returns a monoid value. 
+    Its second parameter is a foldable structure that contains values of type a. 
+
+
+    -- implementing foldMap is all it takes for our type to be made an instance of Foldable. 
+    -- So if we just implement foldMap for some type, we get Foldable.foldr and Foldable.foldl on that type for free! 
+
+
+    instance F.Foldable Tree where  
+        foldMap f EmptyTree = mempty  
+        foldMap f (Node x l r) = F.foldMap f l `mappend`  
+                                 f x           `mappend`  
+                                 F.foldMap f r  
+
+
+    The case of a non-empty node is a bit more interesting. It contains two sub-trees as well as a value. 
+    In this case, we recursively foldMap the same function f over the left and the right sub-trees. 
+
+    Lastly we'll have three monoid values (two from our sub-trees and one from applying f to the value in the node) 
+    and we just have to bang them together into a single value. 
+
+    Notice that we didn't have to provide the function that takes a value and returns a monoid value. 
+    We receive that function as a parameter to foldMap and
+    all we have to decide is where to apply that function and how to join up the resulting monoids from it. 
+
+
+
+-------
+
+
+
+    Check if a Tree contains a certain value using the monoid "Any":
+
+        the value is 3
+        and  the Tree is   testTree = Node 5 (Node 3 (Node 1 EmptyTree EmptyTree) (Node 6 EmptyTree EmptyTree)) (Node 9 (Node 8 EmptyTree EmptyTree) (Node 10 EmptyTree EmptyTree))
+
+        Consider that we want to use the monoid "Any", which have implementation 
+                mempty = Any False
+                Any x `mappend` Any y = Any (x || y) 
+        and we want to check if the value "3" is wrapped in Node in the tree
+                testTree = Node 5 (Node 3 (Node 1 EmptyTree EmptyTree) (Node 6 EmptyTree EmptyTree)) (Node 9 (Node 8 EmptyTree EmptyTree) (Node 10 EmptyTree EmptyTree))
+
+        ghci>getAny $ F.foldMap (\x -> Any $ x == 3) testTree  
+
+        But how did we unwrap the value "x" out of (Node x left right), and return a Monoid of type (Any Bool)?
+
+                foldMap will unwrap the value x 
+                    instance F.Foldable Tree where
+                    foldMap f (Node x l r) = F.foldMap f l `mappend`  f x  `mappend`  F.foldMap f r
+                    
+                                                                      f x    is   (\x -> Any $ x == 3) x
+
+                This line will wrap the res of every step of the recursion in "Any Bool"
+                    (\x -> Any $ x == 3) 
+
+
+                At the last step of the recursion we will get 
+                (Any someBool)  `mappend`  (Any someBool)  `mappend`  (Any someBool)  -- The mappend here refer to  Any x `mappend` Any y = Any (x || y) 
+
+                and becuse our value is in the left tree
+                (Any True)  `mappend`  (Any False)  `mappend`  (Any False)  -- The mappend here refer to Monoid instance implementation for Any:    x `mappend` Any y = Any (x || y) 
+
+
+-------
+
+
+    Check if a Tree contains a certain value using the monoid "list":
+        We can also easily turn our tree into a list by doing a foldMap with the \x -> [x==3] function. By first projecting that function onto our tree, 
+        each element becomes a singleton list. 
+        The mappend action that takes place between all those singleton lists, will concatenate them together in a single list. 
+        check the implementation of mappend in Monoid instance implementation for list 
+
+
+                foldMap will unwrap the value x 
+                    instance F.Foldable Tree where
+                    foldMap f (Node x l r) = F.foldMap f l `mappend`  f x  `mappend`  F.foldMap f r
+                    
+                                                                      f x    is    (\x -> [x==3]) x
+
+                This line will wrap the res of every step of the recursion in [Bool]
+                     (\x -> [x==3]) 
+
+                At the last step of the recursion we will get 
+                [False,True,False]  `mappend`  [False]  `mappend`  [False,False,False]   -- The mappend refers to Monoid instance implementation for list:     mappend = (++) 
+
+
+        ghci> let testTree = Node 5 (Node 3 (Node 1 EmptyTree EmptyTree) (Node 6 EmptyTree EmptyTree)) (Node 9 (Node 8 EmptyTree EmptyTree) (Node 10 EmptyTree EmptyTree))
+        ghci> F.foldMap (\x -> [x==3]) testTree
+        [False,True,False,False,False,False,False]
+
+-------
+
+    Using Monoid instance implementation for list, convert the "testTree" to list 
+        The same process as the above example 
+
+        testTree = Node 5 (Node 3 (Node 1 EmptyTree EmptyTree) (Node 6 EmptyTree EmptyTree)) (Node 9 (Node 8 EmptyTree EmptyTree) (Node 10 EmptyTree EmptyTree))
+
+        ghci> F.foldMap (\x -> [x]) testTree  
+        [1,3,6,5,8,9,10] --    1,3,6 is left  `mappend`     5 is root    `mappend`    8,9,10 is right   -- the `mappend` refers to Monoid instance implementation for list
+    
+
+
+
+----------------------------------
+
+

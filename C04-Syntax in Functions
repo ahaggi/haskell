@@ -1,0 +1,101 @@
+Syntax in Functions
+
+  Pattern matching on parameters in function 
+    You can define separate function bodies for different patterns. This leads to really neat code that's simple and readable. 
+
+    lucky :: (Integral a) => a -> String  
+  	lucky 7 = "LUCKY NUMBER SEVEN!"  
+  	lucky x = "Sorry, you're out of luck, pal!"  
+
+    When you call lucky, the patterns will be checked from top to bottom and when it conforms to a pattern, the last body is fallback.
+
+    Note that if we moved the last pattern (lucky x = ..) to the top, it would always say "Sorry, you'..", because it wouldn't have a chance to be checked for any other patterns.
+
+    When making patterns, we should always include a catch-all pattern so that our program doesn't crash if we get some unexpected input. 
+
+
+
+ "as patterns"
+  	Those are a handy way of breaking something up according to a pattern and binding it to names whilst still keeping a reference to the whole thing. You do that by putting a name and an @ in front of a pattern. For instance, the pattern xs@(x:y:ys). 
+
+    capital :: String -> String  
+    capital "" = "Empty string, whoops!"  
+    capital all@(x:xs) = "The first letter of " ++ all ++ " is " ++ [x]  
+
+
+
+  Guards "switch case equivalent"
+  	Guards are indicated by pipes that follow a function's name and its parameters. Usually, they're indented a bit to the right and lined up. A guard is basically a boolean expression. If it evaluates to True, then the corresponding function body is used. 
+
+  	Note that there's no = right after the function name and its parameters, and before the first guard. Many newbies get syntax errors because they sometimes put "=" there.
+
+
+
+  Case expressions
+    a
+
+
+
+  Where
+  	To define a var or function inside a function, code refactoring , "Where bindings" are a syntactic construct that let you bind to variables at the end of a function and the whole function can see them, including all the guards
+
+  	tell (x:y:_) =  show x ++ " and " ++ show z where z=y  
+
+    initials :: String -> String -> String  
+    initials firstname lastname = [f] ++ ". " ++ [l] ++ "."  
+        where (f:_) = firstname  
+              (l:_) = lastname    
+
+    -- Alt we can use pattern matching/destructuring
+    initials_ (f:_) (l:_) = [f] ++ ". " ++ [l] ++ "."  
+  
+
+    where bindings aren't shared across function bodies of different patterns. If you want several patterns of one function to access some shared name, you have to define it globally.
+
+    doubelxy x y = (doubelx x) + ( doubelx y)
+
+    Just like we've defined constants in where blocks, you can also define functions.
+
+    doubelxy :: Num a => a -> a -> a
+  	doubelxy x y = (dbl x) + ( dbl y) 
+    								where dbl z = 2 * z
+
+    pattern matching in "Where"
+    ...
+    -- where bmi = weight / height ^ 2  
+    -- (skinny, normal, fat) = (18.5, 25.0, 30.0)  
+
+    where bindings can also be nested. It's a common idiom to make a function and define some helper function in its where clause and then to give those functions helper functions as well, each with its own where clause.
+  
+
+
+  Let 
+    Let bindings let you bind to variables anywhere and are expressions themselves, but are very local, so they don't span across guards. 
+
+    let <bindings> in <expression>. 
+
+    cylinder :: (RealFloat a) => a -> a -> a  
+    cylinder r h = 
+        let sideArea = 2 * pi * r * h  
+            topArea = pi * r ^2  
+        in  sideArea + 2 * topArea  
+
+    let a = 1
+        b = 2
+        c = 3
+    in a + b + c
+
+    -- Alt we can use pattern matching/destructuring
+    (let (a,b,c) = (1,2,3) in a+b+c) * 100
+
+
+
+  Where vs Let
+    The difference is that let bindings are expressions themselves. where bindings are just syntactic constructs
+    4 * (let a = 9 in a + 1) + 2 ==> 42
+
+
+    calcBmis xs = [bmi w h | (w, h) <- xs]  
+                where bmi weight height = weight / height ^ 2  
+
+    calcBmis xs = [bmi | (w, h) <- xs, let bmi = w / h ^ 2, bmi >= 25.0]  

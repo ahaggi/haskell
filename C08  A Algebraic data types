@@ -1,0 +1,246 @@
+Algebraic data types intro
+
+*******************************************************************************************************************************************************************************
+*******************************************************************************************************************************************************************************
+    Recap:
+      data Point = Point Float Float deriving (Show)   
+      data Vector a = Vector a a a deriving (Show) 
+      data Maybe a = Nothing | Just a
+
+      The part before the = denotes "the type". The parts after the = are "constructors"
+                                                          
+      data      Point                        =         Point            Float Float   ==> ConcreteType which is Point
+                Type                             valueConstructor        **Fields**  
+
+      data      Vector              a        =         Vector              a a a      ==> Does not has a ConcreteType, its ConcreteType can be Vector Int, Vector Float..etc
+           TypeConstructor    TypeParameter      valueConstructor        **Fields**
+
+      data      Maybe              a        =        Nothing        |         Just              a
+           TypeConstructor    TypeParameter      valueConstructor        valueConstructor  **Fields**
+
+Giving a function a type of Vector t t t -> Vector t t t -> t would be wrong, because the vector type constructor takes only one parameter, whereas the value constructor takes three.
+
+*******************************************************************************************************************************************************************************
+*******************************************************************************************************************************************************************************
+
+
+
+    Let's see how the Bool type is defined in the standard library
+            data Bool = False | True  
+    
+    "data" means that we're defining a new "data type". The part before the = denotes "the type", which is Bool. The parts after the = are "constructors"
+    The | is read as "or" ,,, Both the type name and the "constructors" have to be capital cased.
+
+    So when we write a "constructor", we can optionally add some "fields" after it and those "fields" define the values it will contain. 
+
+    let's think about how we would represent a shape in Haskell. 
+            data Shape = Circle Float Float Float | Rectangle Float Float Float Float   
+
+    The Circle "constructor" has three fields, which take floats. the first two fields are the coordinates of its center, the third one its radius. 
+    The Rectangle "constructor" has four fields which accept floats. The first two are the coordinates to its upper left corner and the second two are coordinates to its lower right one.
+
+    Now when I say fields, I actually mean parameters. Constructors are actually functions that ultimately return a value of a data type. Let's take a look at the type signatures for these two constructors.
+
+        ghci> :t Circle  
+        Circle :: Float -> Float -> Float -> Shape  
+        ghci> :t Rectangle  
+        Rectangle :: Float -> Float -> Float -> Float -> Shape  
+
+    A function that takes a shape and returns its surface:
+        surface :: Shape -> Float  
+        surface (Circle _ _ r) = pi * r ^ 2  
+        surface (Rectangle x1 y1 x2 y2) = (abs $ x2 - x1) * (abs $ y2 - y1)  
+    Remark that:
+        - We couldn't write a type declaration of Circle -> Float because Circle is not a type, Shape is. 
+          Just like we can't write a function with a type declaration of True -> Int. Becuase True is not a type, Bool is.
+        - We pattern matched against constructors before (all the time actually) when we pattern matched against values like [] or False or 5, 
+          only those values didn't have any fields. 
+        - if we try to just print out Circle 10 20 5 in the prompt, we'll get an error. 
+          That's because Haskell doesn't know how to display our data type as a string (yet). 
+        
+    To make our Shape type part of the Show typeclass, we modify it like this: 
+        data Shape = Circle Float Float Float | Rectangle Float Float Float Float deriving (Show)   
+
+    Let's make an intermediate data type that defines a point in two-dimensional space. Then we can use that to make our shapes more understandable.
+
+        data Point = Point Float Float deriving (Show)  
+        data Shape = Circle Point Float | Rectangle Point Point deriving (Show)  
+
+
+Record syntax
+
+    instead of just naming the field types one after another and separating them with spaces, we use curly brackets. First we write the name of the field, 
+    for instance, pnt and then we write a double colon :: and then we specify the type. 
+
+
+      data Point = Point {x::Float , y::Float} deriving (Show)  
+      data Shape = Circle {pnt::Point ,  r::Float} | Rectangle {upperRightPnt::Point , lowerLeftPnt::Point} deriving (Show)  
+
+
+    and we can make a new circle like this:
+      ghci>  Circle { pnt = (Point {x=0 , y=0}) , r = 1}
+      Circle {pnt = Point {x = 0.0, y = 0.0}, r = 1.0}
+    Or
+      ghci>  Circle   (Point 0  0)  1 
+      Circle {pnt = Point {x = 0.0, y = 0.0}, r = 1.0}
+
+    Or 
+      data CharList = CharList { getCharList :: [Char] } deriving (Eq, Show)
+      ghci>  let i = CharList "this will be shown!"  
+
+      ghci>  i
+      CharList {getCharList = "this will be shown!"}
+
+      ghci>  getCharList i   -- Notice that by using record syntax (naming the params in the constructor), we can extract the value by using "getCharList"
+      "this will be shown!"
+
+
+    Use record syntax when a constructor has several fields and it's not obvious which field is which. 
+    If we make a 3D vector data type by doing data Vector = Vector Int Int Int, it's pretty obvious that the fields are the components of a vector. 
+    However, in our Person, Car, Circle or Rectangle types, it wasn't so obvious and we greatly benefited from using record syntax.
+
+
+
+Type parameters "polymorphic types ~ generic"
+    A value constructor can take some values parameters and then produce a new value. For instance, the Point constructor takes 2 values and 
+    produces a Point type. In a similar manner, "type constructors" can take "type parameter" to produce "concrete type".
+
+      data Maybe a = Nothing | Just a  
+    
+    a            is "type parameter", it can be anything Int, Char, Bool,[Char] .. etc
+    Maybe a      is "type constructors",  not a type / concrete type
+    Maybe Int    is a type / concrete type
+
+
+    The a here is the type parameter. And because there's a type parameter involved, we call Maybe a type constructor. 
+    Depending on what we want this data type to hold, this type constructor can end up producing a type of Maybe Int, Maybe Car, Maybe String, etc. 
+
+    The list type takes a parameter to produce a "concrete type". Values can have an [Int] type, a [Char] type, a [[String]] type, 
+    but you can't have a value that just has a type of [].
+
+    If some function requires a Maybe Int as a parameter, we can give it a Nothing, because a Nothing doesn't contain a value anyway and so it doesn't matter. 
+    The Maybe a type can act like a Maybe Int if it has to, just like 5 can act like an Int or a Double. Similarly, the type of the empty list is [a]. 
+    An empty list can act like a list of anything. 
+
+
+    Another example of a parameterized type that we've already met is Map k v from Data.Map. 
+    This is a good example of where type parameters are very useful. Having maps parameterized enables us to have mappings from any type to any other type, 
+    as long as the type of the key is part of the Ord typeclass. 
+
+
+
+
+Typeclass constraint in type declarations  
+                    readMore.. different than "C08C -Typeclasses that are subclasses of other typeclasses"
+    we could add a typeclass constraint in the data declaration
+            data (Ord k) => Map k v = ...   
+    However, it's a very strong convention in Haskell to never add typeclass constraints in data declarations. Why? 
+    
+    So don't put type constraints into data declarations even if it seems to make sense, because you'll have to put them into the function type declarations.
+
+
+
+Derived instances
+
+    A type can be made an instance of a typeclass if it supports that behavior. Example: the Int type is an instance of the Eq typeclass because the Eq typeclass 
+    defines behavior for stuff that can be equated. And because integers can be equated, Int is a part of the Eq typeclass. 
+
+    Typeclasses are more like interfaces. We don't make data from typeclasses. Instead, we first make our data type and then we think about what it can act like. 
+    If it can act like something that can be equated, we make it an instance of the Eq typeclass. If it can act like something that can be ordered, 
+    we make it an instance of the Ord typeclass.
+
+
+    let's see how Haskell can automatically make our type an instance of any of the following typeclasses: Eq, Ord, Enum, Bounded, Show, Read. 
+    Haskell can derive the behavior of our types in these contexts if we use the deriving keyword when making our data type.
+
+    data Person = Person { firstName :: String  
+                         , lastName :: String  
+                         , age :: Int  
+                         } deriving (Eq)
+
+    When we try to compare two values of that type with == or /=, Haskell will see if the value constructors match (there's only one value constructor here though)
+    and then it will check if all the data contained inside matches by testing each pair of fields with ==.
+    There's only one catch though, the types of all the fields also have to be part of the Eq typeclass. But since both String and Int are, we're OK. 
+
+
+    The Show and Read typeclasses are for things that can be converted to or from strings, respectively. Like with Eq, if a type's constructors have fields, 
+    their type has to be a part of Show or Read 
+
+
+    We can easily use algebraic data types to make enumerations and the Enum and Bounded typeclasses help us with that.
+
+        data Day = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday    deriving (Eq, Ord, Show, Read, Bounded, Enum)  
+
+        If we compare two values of the same type that were made using different constructors, the value which was made with a constructor that's defined first is considered smaller. 
+        For instance, consider the Bool type, which can have a value of either False or True. 
+
+            ghci>  Monday < Tuesday
+            True
+            
+            ghci>  Monday `compare` Tuesday
+            LT
+
+
+        Because all the value constructors are nullary (take no parameters, i.e. fields), we can make it part of the Enum typeclass. 
+
+              ghci> succ Monday  
+              Tuesday  
+              ghci> pred Saturday  
+              Friday  
+              ghci> [Thursday .. Sunday]  
+              [Thursday,Friday,Saturday,Sunday]  
+              ghci> [minBound .. maxBound] :: [Day]  
+              [Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday]  
+
+
+Type synonyms
+
+  When writing types, the [Char] and String types are equivalent and interchangeable. That's implemented with type synonyms.
+  they're just about giving some types different names so that they make more sense to someone reading our code and documentation. 
+
+      type String = [Char]  
+
+  The keyword "type" might be misleading to some, because we're not actually making anything new, but we're just making a synonym for an already existing type. 
+
+  toUpperString :: [Char] -> [Char] or toUpperString :: String -> String. Both of these are essentially the same.
+
+      type PhoneNumber = String  
+      type Name = String  
+      type PhoneBook = [(Name,PhoneNumber)]  
+
+  So now, when we implement a function that takes a name and a number and sees if that name and number combination is in our phonebook,
+  we can give it a very pretty and descriptive type declaration.
+
+      inPhoneBook :: Name -> PhoneNumber -> PhoneBook -> Bool       ==     String -> String -> [(String,String)] -> Bool
+      inPhoneBook name pnumber pbook = (name,pnumber) `elem` pbook  
+
+
+  Type synonyms can also be parameterized. If we want a type that represents an association list type but still want it to be general
+
+      type AssocList k v = [(k,v)]
+
+      Or
+
+      type V1 a = Vector a
+      and a function that gets "Vector a" as a param can have a type
+        vectMult :: (Num t) => V1 t -> t -> Vector t  
+
+      Just because we made a type synonym called V1, doesn't mean that we could do (V1 1 2 3), 
+      we've to use (Vector 1 2 3)
+
+Another cool data type that takes two types as its parameters is the Either a b type. This is roughly how it's defined:
+    data Either a b = Left a | Right b deriving (Eq, Ord, Read, Show)  
+
+we're interested in how some function failed or why, we usually use the result type of Either a b, where a is some sort of type that can 
+tell us something about the possible failure and b is the type of a successful computation. 
+Hence, errors use the Left value constructor while results use Right.
+
+    Important: read the lockerLookup function
+      -- We could have used a Maybe a to represent the result but then we wouldn't know why we couldn't get the code. 
+      -- But now, we have information about the failure in our result type.
+
+
+
+
+
+

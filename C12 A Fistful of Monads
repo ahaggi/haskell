@@ -1,0 +1,451 @@
+A Fistful of Monads
+
+Functors are things that can be mapped over, like lists, Maybes, trees, and such. In Haskell, they're described by the typeclass Functor, 
+which has only one typeclass method, namely fmap, which has a type of 
+        fmap :: (a -> b) -> f a -> f b
+        
+
+
+applicative (are special type of functor) which allows to map over a functor with another functor which contains functions ,,, BOTH FUNCTORS HAS TO BE THE SAME TYPE
+            i.e. boxOfFunction <*> someBox ,, where BOTH  boxOfFunction and someBox  FUNCTORS HAS TO BE THE SAME TYPE, they both can be Maybe, [], Map, (->) b ..etc
+            extract the content of "boxOfFunction" and mapped it over "someBox"
+        (<*>) :: f (a -> b) -> f a -> f b
+
+
+Monads are just beefed up applicative functors, much like applicative functors are only beefed up functors. 
+
+        (>>=) :: m a -> (a -> m b) -> m b  
+        >>= allows us to feed a monadic value to a function that takes a normal one. and thus composing them.
+
+        >>= takes         
+            m a        monadic value, and
+            (a -> m b) function that takes a normal value and returns a monadic value
+        >>= returns
+            m b         monadic value. 
+
+
+Remember that:
+When we make an instance of (Functor || Applicative || Monad) we use typeConstructor,
+    instance Functor [] where..
+    instance Applicative [] where..
+    instance Monad [] where..
+when we make an instance of (Monoid) we use a concreteType.
+    instance Monoid [a] where..
+
+
+
+
+********************************************************************************************************************************
+If we've the function (\x -> Just (x+1))
+
+(\x -> Just (x+1)) 1 ==> 2 OK
+
+But, how can be feed a "Maybe" value to the function (\x -> Just (x+1))?
+
+we can unwrap the "Maybe" value with this function
+    applyMaybe Nothing f  = Nothing  
+    applyMaybe (Just x) f = f x  
+
+ghci>  applyMaybe (Just 1) (\x -> Just (x+1))
+Just 2
+
+applyMaybe is similar to (>>=), but "bind" is more generalized 
+    applyMaybe:: Maybe a -> (a -> Maybe b) -> Maybe b   
+    (>>=)     :: m a     -> (a -> m b)     -> m b  
+
+
+ghci> applyMaybe (Just 3) (\x -> Just (x+1))
+Just 4  
+ghci>  applyMaybe Nothing (\x -> Just (x+1))
+Nothing
+ghci>  applyMaybe (Just 3) (\x -> Nothing)   -- (\x -> Nothing) 3 ==> Nothing
+Nothing
+
+
+**********************************************************************************************************
+**********************************************************************************************************
+
+
+The Monad type class
+
+
+    class Monad m where  
+        return :: a -> m a  
+      
+        (>>=) :: m a -> (a -> m b) -> m b     -- (>>=) pronounced as bind
+      
+        (>>) :: m a -> m b -> m b  
+        x >> y = x >>= \_ -> y  
+      
+        fail :: String -> m a  
+        fail msg = error msg  
+
+
+    Notice that the Monad decleration does not have the constrain "(Applicative m) = > Monad m where"
+    Becuase of Monad type class was introduced to Haskell way before Applicative/Functor
+    But remember that every monad is an applicative functor, such as every applicative is a functor
+
+    return :: a -> m a 
+        It's the same as pure, only with a different name. It takes a value and puts it in a minimal default context that still holds that value. i.e. [x] , Just x ...etc
+        return is nothing like the return that's in most other languages. It doesn't end function execution or anything, it just takes a normal value and puts it in a context.
+    
+    (>>=) :: m a -> (a -> m b) -> m b     -- (>>=) pronounced as bind
+        it takes a monadic value ([x] , Just x ...etc) and feeds it to a function that takes a normal value but returns a monadic value. 
+
+    (>>) :: m a -> m b -> m b  
+    x >> y = x >>= \_ -> y  
+        Not important for now, and we pretty much never implement it when making Monad instances. But it will be used with "guard of MonadPlus"
+
+    fail :: String -> m a  
+    fail msg = error msg  
+        We never use it explicitly in our code. Instead, it's used by Haskell to enable failure in a special syntactic construct for monads that we'll meet later.
+        We don't need to concern ourselves with fail too much for now. 
+
+
+**********************************************************************************************************
+
+
+Let's take a look at the Monad instance implementation for Maybe
+
+    Remark:Take a look at "applyMaybe" function first!
+
+
+    instance Monad Maybe where  
+        return x = Just x  
+        Nothing >>= f = Nothing  
+        Just x >>= f  = f x  
+        fail _ = Nothing  
+
+
+    ghci>  (Just 3) >>= (\x -> Just (x+1))
+    Just 4
+    ghci>  Nothing >>= (\x -> Just (x+1))
+    Nothing
+    ghci>  (Just 3) >>= (\x -> Nothing)
+    Nothing
+
+    Using of Monad instance for Maybe:   Take a look at the example "landLeft/landRight" at C12.hs
+
+    >>= allows us to feed a monadic value to a function that takes a normal one. and thus composing them.
+
+
+    ghci>  landLeft 1 (0,0) >>= landRight 1 >>= landLeft 2 
+
+    ghci>  (0,0) -: landLeft 1 >>= landRight 1 >>= landLeft 2
+
+    ghci>  return (0,0) >>= landLeft 1 >>= landRight 1 >>= landLeft 2
+
+    The function >>
+        You will thought:
+            It takes 2 monodic values and return the 2.nd one,   x >>= \_ -> y    which is    (\_ -> y) x    which is  y
+
+        But:
+            ghci> Nothing >> Just 3
+            Nothing
+
+        Explaination:
+            It takes 2 monodic values and return,   x >>= \_ -> y    which is    Nothing >>= f = Nothing      which is  Nothing
+
+
+    We took some functions that we had and saw that they would work better if the values that they returned supported failure. 
+    By turning those values into Maybe values and replacing normal function application with >>=, we got a mechanism for handling failure pretty much for free, 
+    because >>= is supposed to preserve the context of the value to which it applies functions. 
+
+
+**********************************************************************************************************
+
+
+do notation    
+     x <- m a   "<-" unwrap "a" from the monadic value "m a" and store it in x
+
+
+    ghci> Just 3 >>= (\x -> Just (show x ++ "!"))  
+    Just "3!"  
+
+    ghci> Just 3 >>= (\x -> Just "!" >>= (\y -> Just (show x ++ y)))  
+        --Just 3 >>= (\x -> Just    (show x ++ "!")                )
+    Just "3!"  
+
+
+    foo = Just 3   >>= (\x -> 
+                        Just "!" >>= (\y -> 
+                        Just (show x ++ y)))  
+
+    To save us from writing all these annoying lambdas, Haskell gives us do notation. 
+    It allows us to write the previous piece of code like this: 
+
+    foo = do  
+        x <- Just 3  
+        y <- Just "!"  
+        Just (show x ++ y)  
+
+    do notation inline:
+        ghci> do;  x <- Just 3; y <- Just"!"; Just (show x ++ y)
+        ghci> do { x <- Just 3; y <- Just"!"; Just (show x ++ y) }
+        Just "3!"
+
+
+
+    It's important to remember that do expressions are just different syntax for chaining monadic values.
+    If any of the values that we try to extract from are Nothing, the whole do expression will result in a Nothing. We're yanking out their (possibly existing) values 
+
+
+
+    ghci> Just 9 >>= (\x -> Just (x > 8))  
+
+    foo = do   
+        x <- Just 9        -- line1 secceed
+        Just (x > 8)       -- line2 secceed
+
+
+    *********
+    Important to notice that:
+    The lines in do expression are sequential, as each value in each line relies on the result of the previous ones, along with their contexts 
+
+    foo = do   
+        x <- Just 9        -- line1 
+        y  <-  Nothing     -- line2
+        Just (x > 8)       -- line3 
+        
+    foo = do   
+        x <- Just 9        -- line1 
+        _  <-  Nothing     -- line2 
+        Just (x > 8)       -- line3
+        
+    foo = do   
+        x <- Just 9        -- line1 
+        Nothing            -- line2 
+        Just (x > 8)       -- line3 
+
+    line1 secceed
+    line2 fails
+    line3 fails, even though it doesn't explictly use the result of line2, becuase each line relies on the result of the previous ones
+    *********
+
+
+
+
+
+    IMPORTANT to notice that, even though indiviual iteration will produce a singltonList [(n,h)], the final result will not be listOfList [[(n,h)],[(n,h)]..] but a flattened list [(n,h),(n,h)..]
+        do 
+            n<- [1,2]          -- n takes on every value from [1,2]
+            h<-['a','b']       -- ch takes on every value from ['a','b']
+            [(n,h)]
+
+        [(1,a),(1,b),(2,a),(2,b)]
+
+    In fact, list comprehensions are just syntactic sugar for using lists as monads. In the end, list comprehensions and lists in do notation translate to using >>=.
+
+
+
+    Take a look at "sevensOnly"  -How filtering in list comprehensions translates to the list monad-
+
+
+
+
+    -- NOTICE "return fromCell" / [fromCell] the right side of "<-" must be monadic
+    x <- m a   "<-" unwrap "a" from the monadic value "m a" and store it in x
+
+    allPossiblePaths' fromCell@(c,r) toCell@(c',r')= do
+                                                strt <- [fromCell]  
+                                                fst <- moveKnight strt
+                                                ...
+
+
+
+pattern matching in a do expression: 
+    justH = do  
+        (x:xs) <- Just "hello"  
+        return x                    -- Remember that: return x = Just x,, return is the same as pure in Applicative
+
+    ghci> justH    
+    Just h
+
+
+    In Normal pattern matching If the matching falls through all the patterns for a given function, an error is thrown and our program crashes. 
+    When pattern matching fails in a do expression, the fail function is called. It's part of the Monad type class and it enables failed pattern matching to result 
+    in a failure in the context of the current monad instead of making our program crash. 
+
+    class Monad m where  
+        ...
+        fail :: String -> m a  
+        fail msg = error msg  
+
+    instance Monad Maybe where  
+        ...
+        fail _ = Nothing  
+
+    As a result of the above, the flwg line will produce "Nothing"
+
+    ghci>  do; (x:xs) <- Nothing ; return x          -- Remember that: return x = Just x,, return is the same as pure in Applicative
+    ghci>  do; (x:xs) <- Just "" ; return x       
+    ghci>  do; (x:xs) <- Just [] ; return x
+    Nothing
+
+
+**********************************************************************************************************
+
+
+Let's take a look at the Monad instance implementation for []
+
+    instance Monad [] where  
+        return x = [x]  
+        xs >>= f = concat (map f xs)  
+        fail _ = []  
+
+    ghci> [3,4,5] >>= \x -> [x,-x]  
+    which is:
+        let xs = fmap (\x -> [x,-x]) [3,4,5]      ==> xs =[[3,-3],[4,-4],[5,-5]]
+        concat ( xs )                             ==> [3,-3,4,-4,5,-5]
+    [3,-3,4,-4,5,-5]
+
+    fail _ = []
+        The empty list [] is returned on failure. It will be used for ex. when pattern matching fails in a do expression
+
+
+    For every element in [1,2], go over every element in ['a','b'] and produce a tuple of one element from each
+
+        ghci> [1,2] >>= \n -> ['a','b'] >>= \ch -> return (n,ch)  
+        [(1,'a'),(1,'b'),(2,'a'),(2,'b')]
+
+        List comprehensions:
+            ghci> [ (n,ch) | n <- [1,2], ch <- ['a','b'] ]  
+        
+        Nested fmap:
+            ghci>  concat ( fmap (\n -> fmap (\h -> (n,h)) ['a','b']) [1,2])
+        
+        do notation:
+        IMPORTANT to notice that, even though indiviual iteration will produce a singltonList [(n,h)], the final result will not be listOfList [[(n,h)],[(n,h)]..] but a flattened list [(n,h),(n,h)..]
+            do 
+                n<- [1,2]          -- n takes on every value from [1,2]
+                h<-['a','b']       -- ch takes on every value from ['a','b']
+                [(n,h)]
+    
+    In fact, list comprehensions are just syntactic sugar for using lists as monads. In the end, list comprehensions and lists in do notation translate to using >>=.
+
+
+
+
+
+
+
+Filter [1..59] to contain only numbers whose digits contain a 7:
+    ghci> [ x | x <- [1..50], '7' `elem` show x ]  
+    
+
+How filtering in list comprehensions translates to the list monad
+
+    To see how filtering in list comprehensions translates to the list monad, we have to check out the "guard function" and the "MonadPlus type class". 
+    The MonadPlus type class is for monads that can also act as monoids. 
+
+        1- MonadPlus type class:
+            class (Monad m) => MonadPlus m where  
+                mzero :: m a  
+                mplus :: m a -> m a -> m a  
+
+            mzero is synonymous to mempty from the Monoid type class 
+            mplus corresponds to mappend
+
+            Because lists are monoids as well as monads, they can be made an instance of this type class: 
+            
+            instance MonadPlus [] where  
+                mzero = []  
+                mplus = (++)  
+            
+
+
+        2- The guard function:
+            guard :: (MonadPlus m) => Bool -> m ()  
+                guard True = return ()  
+                guard False = mzero  
+            
+            It takes a boolean as a param, if True, returns the dummy value () in a minimal default context.
+                                           if False, returns a failed monadic value. 
+                
+                ghci> guard (5 > 2) :: Maybe ()
+                Just ()
+                ghci> guard (1 > 2) :: Maybe ()
+                Nothing  
+                ghci> guard (5 > 2) :: [()]  
+                [()]  
+                ghci> guard (1 > 2) :: [()]  
+                []  
+
+
+
+    Filter [1..59] to contain only numbers whose digits contain a 7:
+
+        using lsit comprehensions
+                ghci> [ x | x <- [1..50], '7' `elem` show x ]
+
+        using guard function and monad application
+                ghci> [1..50] >>= (\x -> guard ('7' `elem` show x) >> return x)
+                explaination:
+                    concat (   map   fn    [1..50] )
+                          fn = case (  if True [()] else []  )  of 
+                                        [()] -> [()]>>= \_ -> [x]           eqv of      map (\_ -> [x]) [()]      res in [x]
+                                        [] ->    [] >>= \_ -> [x]           eqv of      map (\_ -> [x])  []       res in []
+
+                ghci> [1..50] >>= \x -> guard ('7' `elem` show x)  >>= \res-> if ("()" /= show res) then [] else return x
+                [7,17,27,37,47]
+
+        using do notation
+                sevensOnly = do  
+                    x <- [1..50]  
+                    guard ('7' `elem` show x)  
+                    return x  
+
+
+
+**********************************************************************************************************
+**********************************************************************************************************
+**********************************************************************************************************
+
+
+Monad laws
+
+
+Left identity
+
+    return x >>= f is the same damn thing as f x
+
+    becuase of:
+        "return" takes a value and returns it wrapped in a default minimal context "monadic value"
+        >>=      takes a "monadic value" and unwrapped. 
+    ghci>  return 3 >>= (\x-> [x+1])
+    ghci>  (\x-> [x+1]) 3
+    [4]
+
+    ghci>  return 3 >>= \x-> Just (x+1)
+    ghci>   (\x-> Just (x+1)) 3
+    Just 4
+
+
+
+Right identity
+    if we have a monadic value "m" and we use >>= to feed it to return, the result is our original monadic value "m"
+    m >>= return                is no different than m, where m is just x , [x] ...
+    m >>= \x-> return x         is no different than m, where m is just x , [x] ...
+
+    ghci> Just "move on up" >>= (\x -> return x)  
+    Just "move on up"  
+
+    ghci> [1,2,3,4] >>= (\x -> return x)  
+             concat ( map f [1,2,3,4])       
+             concat ([[1],[2],[3],[4]])       
+    [1,2,3,4]  
+
+
+Associativity
+
+    (m >>= f) >>= g is just like doing m >>= (\x -> f x >>= g)
+
+
+    ghci>  (  return (0,0) >>= landRight 2 >>= landLeft 2  )     >>= landRight 2
+
+    ghci>  return (0,0) >>= landRight 2 >>=  (  \x-> landLeft 2 x >>= landRight 2  )
+    Just (2,4)
+
+
+    
+    

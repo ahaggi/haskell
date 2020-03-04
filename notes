@@ -1,0 +1,71 @@
+
+Applicative vs Monad
+
+Every monad is an applicative functor and every applicative functor is a functor. 
+The Applicative type class has a class constraint such that our type has to be an instance of Functor before we can make it 
+an instance of Applicative. 
+
+But even though Monad should have the same constraint for Applicative, as every monad is an applicative functor, it doesn't, 
+because the Monad type class was introduced to Haskell way before Applicative.
+
+The key diffrence between how Applicatives and Monads operate:
+
+    Let us say we have some type "A" which is instance of Applicative ,, "A" is the "Box" i.e. [], Maybe, (->)r etc.
+    and we have some type "M" which is an instance of Monad,, "M" is the "Box" i.e. [], Maybe, (->)r etc.
+
+    Example when the box is "Maybe":
+    If we need to feed the function (\xs->3:xs ) the value "Just[4]"
+
+        <*>: Extract the function which is inside a box "Maybe" and applied/mapped over another box
+        ghci>   Just (\xs->3:xs ) <*> Just [4]
+        Just [3,4]
+
+        >>=: Extract some the value which is inside a box "Maybe" and feed it to the function (\xs->3:xs )
+        ghci>  Just [4] >>= \xs->Just (3:xs) 
+        Just [3,4]
+
+
+    Example when the box is "(->)r":
+        <*>: Extract the function and applied/mapped over another function 
+            ghci>  (+) <*> (+3) $ 5
+            13
+        >>=: Extract some the value which is inside a box "(->)r" and feed it to the function (+)
+            ghci>  (+3) >>= (+) $ 5
+            13
+
+Writer vs State:
+    Both results in a tuple (fst , snd)
+
+    Writer:
+        * You can use "Writer" to get some result "fst", and an attached log "snd"
+        * The "snd" has to be an instance of monoid.
+        * We can chain 2 function "f1 and f2" that returns "writer(fst, snd)" with >>=, 
+          even if "f1" returns "fst" of type Int and "f2" returns "fst" of type Bool
+          read the section about "tell function" in "C13 Monads More1 - Writer"
+        * chaining with >>=
+            runWriter $ f1 >>=    \fstF1-> f2 >>=     \fstF2-> f fstF1 fstF2
+            we have to extract fstF1 and fstF2 to feed them to some function "f"
+        * Value of type "Writer" can be printed because it extends "Show" typeClass 
+          ghci>  someWriterValue             ==> Writer (fst, snd)
+          ghci>  runWriter someWriterValue   ==> (fst, snd)
+        * runWriter takes only one param, which is "someWriterValue"
+
+    State:
+        * You can use "State" for some problems which are inherently stateful in that they rely on some state that changes over time
+        * We can chain 2 function "f1 and f2" that returns "state $ \prevState -> (fst, snd)" with >>=, 
+          even if "f1" returns "fst" of type Int and "f2" returns "fst" of type Bool
+          read the section about "pop and push" in "C13 Monads More4 - state monad"
+        * chaining with >>=
+            (runState $ f1 >>= \fstF1-> f2 >>=     \fstF2-> return( someThing )) -- someThing can be a diffrent type than fstF1 and fstF2
+            we have to wrap "f2" and "return (someThing)" in lambda, due to the implementation of ">>=", read ("pop >>= pop" wouldn't work) in "C13 Monads More4 - state monad"
+        * The value wrapped in "State" can NOT be printed because "State" is just a FUNCTION TYPE similar to the type "DiffList" at  "C13 Monads More2 - Difference lists"
+          which means the value is just a FUNCTION
+          ghci>  state $ someStateComputation  ==> error, because someStateComputation is just a function
+          ghci>  (runState someStateComputation)   someInitState
+          Read the section  "Wrapping push and pop function with the monadic type State" in "C13 Monads More4 - state monad"
+        * runState takes aStatefulComputation "fn" wrapped in (state $ fn ) and returns "fn", to get some result we have to feed "fn" with "someInitState"
+
+
+
+
+

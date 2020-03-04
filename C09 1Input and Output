@@ -1,0 +1,97 @@
+
+Compiling a .hs file
+    The .hs file must have a function called "main", which returns  "IO action"
+    1- 
+        Linux: use terminal
+        Windows: install Cygwin Or "UbuntuTerminal" from windowsAppStore 
+    2- compile fileName.hs:   ghc --make fileName
+       this will create 2 files fileName.o and fileName.hi
+    3- In the terminal run ./fileName
+
+Protip: To run a program you can either compile it and then run the produced executable file by doing ghc --make fileName and
+then ./fileName or you can use the runhaskell command like so: runhaskell fileName.hs and your program will be executed on the fly.
+
+putStrLn
+    takes a string as a parameter and returns an "I/O action" that will print that string to the terminal
+    ghci>  putStrLn "abc"
+    abc
+
+print = putStrLn . show
+    takes a "value of any type that's an instance of Show" as a parameter and returns an "I/O action" that will print "the value" to the terminal
+
+sequence
+    Doing map print [1,2,3,4], will create a list of I/O actions [print 1, print 2, print 3, print 4],
+    If we want to transform that list of I/O actions into an I/O action
+    ghci> sequence (map print [1,2,3,4,5])  
+    1  
+    2  
+    3  
+    4  
+    5  
+    [(),(),(),(),()]  
+
+
+
+
+
+
+do-notation
+
+    main = do  
+        _    <- putStrLn "Enter a string:"      -- The value of "_" will be the dummy value () in a minimal default context,,  
+        name <- getLine  
+        putStrLn ("The input is \"" ++ name ++ "\"")  
+    
+    x <- m a   "<-" unwrap "a" from the monadic value "m a" and store it in x
+    At each line, the right side of the "->" will be a function that returns a monadic value 
+    Each line is dependent on the success of the previous line 
+
+
+
+    We can use "let" in "do-notation"
+        main = do  
+                let a = "hell"  
+                    b = "yeah"  
+                putStrLn $ a ++ " " ++ b  
+    
+    f' = do
+        a <- somefunc 1
+        b <- somefunc True
+        c <- somefunc 0.5
+        d <- somefunc "str"
+        let e = "!"
+        return (e)
+
+    somefunc x = [x] 
+
+    Read more about "do-notation" in the "monad" section
+
+
+    It takes a boolean value and an I/O action if that boolean value is True, it returns the same I/O action that we supplied to it.
+    However, if it's False, it returns the return (), action, so an I/O action that doesn't do anything. 
+
+        import Control.Monad   
+        main = do  
+            c <- getChar  
+            when (c /= ' ') $ do  
+                                putChar c  
+                                main  
+
+
+    guard vs when
+
+        guard: It takes only a boolean as a param, 
+                if True, returns the dummy value () in a minimal default context. i.e. Maybe (), [()] .. etc
+                if False, returns a failed monadic value.                         i.e. Nothing , []   ..etc
+        use "guard" with combine of ">>"
+        Take a look at "C12 A Fistful of Monads"
+
+        when: It takes a boolean value +  an I/O action (Monad)
+                if True, it returns the same I/O action that we supplied to it
+                if False, it returns the return (), action, so an I/O action that doesn't do anything. 
+
+
+
+
+
+

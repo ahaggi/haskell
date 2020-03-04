@@ -1,0 +1,89 @@
+Inefficient list construction
+
+    When using the Writer monad, you have to be careful which monoid to use, because using lists can sometimes turn out to be very slow. 
+    That's because lists use ++ for mappend and using ++ to add something to the end of a list is slow if that list is really long. 
+
+
+    In our gcd' function, the logging is fast because the list appending ends up looking like this:
+    ...
+    | otherwise = do    
+        result <- gcdReverse b (a `mod` b)  
+        tell [show a ++ " mod " ++ show b ++ " = " ++ show (a `mod` b)]  
+        return result  
+
+    a ++ (b ++ (c ++ (d ++ e))) 
+    "15 mod 4 = 3" ++  ("4 mod 3 = 1"  ++  ("3 mod 1 = 0"  ++  ("Finished with 1")))
+    which means :
+        consturct/iterare on every elem in the list d and append the list e to it
+        consturct/iterare on every elem in the list c and append the list d+e to it
+        consturct/iterare on every elem in the list b and append the list c+d+e to it
+        consturct/iterare on every elem in the list a and append the list b+c+d+e to it
+
+
+
+    The following function works like gcd', only it logs stuff in reverse. 
+    First it produces the log for the rest of the procedure and then adds the current step to the end of the log.
+    ...
+    | otherwise = do  
+        tell [show a ++ " mod " ++ show b ++ " = " ++ show (a `mod` b)]  
+        gcd' b (a `mod` b)  
+
+    (((a ++ b) ++ c) ++ d) ++ e  
+    (((15 mod 4 = 3")  ++  "4 mod 3 = 1")  ++  "3 mod 1 = 0")  ++  "Finished with 1"
+    which means :
+        consturct/iterare on every elem in the list a       and append the list b to it
+        consturct/iterare on every elem in the list a+b     and append the list c to it
+        consturct/iterare on every elem in the list a+b+c   and append the list d to it
+        consturct/iterare on every elem in the list a+b+c+d and append the list e to it
+
+
+
+Consider this function which duplicate a list's content "n" times:
+
+    ff' ys 0 = ys 
+    ff' ys n = (ff' ys (n-1)) ++ ys       
+
+    ghci>  ff' xs 100
+    *** Exception: stack overflow
+
+    a better solution will be 
+    ff ys 0 = ys 
+    ff ys n = ys ++ ff ys (n-1)
+
+    Because 
+        ff' produces (((a ++ b) ++ c) ++ d) ++ e 
+        ff  produces a ++ (b ++ (c ++ (d ++ e))) 
+
+    But let us say that we want to use ff', one alternative solution is to use the type DiffList 
+
+
+Difference lists
+
+    A difference list is similar to a list, only instead of being a normal list, it's a function that takes a list and prepends another list to it.
+    The difference list equivalent of a list like [1,2,3] would be the function \xs -> [1,2,3] ++ xs.
+
+    Let's make a newtype wrapper for difference lists so that we can easily give them monoid instances:
+        newtype DiffList a = DiffList { getDiffList :: [a] -> [a] }
+
+    The type that we wrap is [a] -> [a] because a difference list is just a function.
+    its like partially applling  +  to an int:  (+) 3 ==> \x-> 3 + x, it does not produce a value but a function, and if we want an Int we just add "0" to that function
+    
+    Converting normal lists to difference lists and vice versa is easy:
+
+        toDiffList :: [a] -> DiffList a  
+        toDiffList xs = DiffList (xs++)  
+        
+        fromDiffList :: DiffList a -> [a]  
+        fromDiffList (DiffList f) = f []  
+
+    Monoid instance implementation for DiffList
+        mempty is: \xs-> [] ++ xs 
+        <> or mappend is:  DiffList (\xs -> f (g xs))
+                     if  f = \xs-> [1,2,3] ++ xs
+                     and g = \xs-> [4,5,6] ++ xs
+
+                    let res = f `mappend` g = \xs-> [1,2,3] ++ ([4,5,6] ++ xs)
+
+                    res []     -- will be [1,2,3,4,5,6]
+                    res [] is [1,2,3] ++ ( [4,5,6] ++ [] )
+

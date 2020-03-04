@@ -1,0 +1,289 @@
+Typeclasses 102
+
+    Recap on typeclasses: typeclasses are like interfaces. A typeclass defines some behavior (like comparing for equality, comparing for ordering, enumeration)
+    and then types that can behave in that way are made instances of that typeclass. 
+
+
+    For example, the Eq typeclass is for stuff that can be equated. 
+
+        class Eq a where  
+            (==) :: a -> a -> Bool  
+            (/=) :: a -> a -> Bool  
+            x == y = not (x /= y)  
+            x /= y = not (x == y)  
+
+    If we have say class Eq a where and then define a type declaration within that class like (==) :: a -> -a -> Bool, 
+    then when we examine the type of that function later on, it will have the type of (Eq a) => a -> a -> Bool.
+
+
+Deriving a typeclass:
+  
+  Using keyword "deriving" 
+
+        data Bool = False | True     deriving     (Eq)
+             Type                    deriving   typeclass
+    
+  Or
+
+  Using keyword "instance" of some typeclass
+
+    data TrafficLight = Red | Yellow | Green  
+
+    instance typeclass     type       where ...
+    instance    Eq      TrafficLight  where  
+        Red == Red = True  
+        Green == Green = True  
+        Yellow == Yellow = True  
+        _ == _ = False  
+
+
+    Because == was defined in terms of /= and vice versa in the class declaration, we only had to overwrite one of them in the instance declaration. 
+
+
+    But if "==" was NOT defined in terms of "/=" and vice versa in the Eq class declaration,  
+    we'd have to implement both of these functions when making a type an instance of it. 
+
+    class Eq where
+        (==) :: a -> a -> Bool
+        (/=) :: a -> a -> Bool
+    
+    instance Eq TrafficLight where  
+        Red == Red = True  
+        Red /= Red = false  
+        Green == Green = True  
+        Green /= Green = false
+        Yellow == Yellow = True  
+        Yellow /= Yellow = True  
+        _ == _ = False
+        _ /= _ = False
+
+
+    But how are (polymorphic types / typeConstructors) made as instances of typeclasses i.e. Eq?
+
+    For ex. Maybe isn't a concrete type, but "Maybe a" is. so inorder to make "Maybe a" an instance of Eq, 
+        "a" has to be an instance of Eq
+
+    instance (Eq m) => Eq (Maybe m) where 
+        Just x == Just y = x == y  
+        Nothing == Nothing = True  
+        _ == _ = False  
+
+
+
+
+
+
+  instance vs deriving:
+
+   * If we want a standred data type to derive our own typeclass i.e. we want "Int" to derive "ourTypeClass"
+        class OurOwnTypeClass a where
+            somefunc :: a -> String
+
+        instance OurOwnTypeClass Int where 
+            somefunc 0 = "It's a zero"
+            somefunc _ = "it's a num"
+
+            -- ghci>   somefunc (0::Int)   Notice the Int casting
+            -- "It's a zero"
+        
+   * Redifine how some standred function work i.e (==) function which is defined in "Eq" typeclass 
+
+        instance Eq TrafficLight where  
+            Red == Green = True  
+            Green == Yellow = True  
+            Yellow == Red = True  
+            _ == _ = False  --catch-all pattern: if none of the previous combinations, then two lights aren't equal
+
+        ghci>  Red == Green ==>    True
+        ghci>  Red == Red   ==>    False 
+
+        -- if we used deriving  Red == Red will be true
+
+    * Deriving Show would have just directly translated the value constructors to strings. 
+      But if we want lights to appear like "Red light", then we have to make the instance declaration by hand.
+    
+        instance Show TrafficLight where  
+            show Red = "Red light"  
+            show Yellow = "Yellow light"  
+            show Green = "Green light" 
+
+        ghci>  Green
+        Green light
+
+    * When we want to implement a function which is declared but not defined in some typeClass
+        making "list" an instance of Monoid, require to define some functions
+
+        - class Functor f where  
+            fmap :: (a -> b) -> f a -> f b  
+            the fmap has no standred definition, that means every instance of Functor typeClass will have to define it.
+
+            instance Functor [] where  
+                fmap = map  
+
+            instance Functor Maybe where
+                fmap f (Just x) = Just (f x)
+                fmap f Nothing = Nothing
+
+        The same goes for Monoid
+        
+        - class Monoid m where
+            mempty :: m
+            mappend :: m -> m -> m
+            mconcat :: [m] -> m
+            mconcat = foldr mappend mempty
+            mempty and mapped are declared but not has no standred definition, that means every instance of Monoid typeClass will have to define them.
+
+            instance Monoid [a] where  
+                mempty = []  
+                mappend = (++)  
+
+
+
+Typeclasses that are subclasses of other typeclasses
+
+        class Num a where ...
+
+    If we want "Num" to be a subclass of "Eq" typeclass
+
+        class (Eq a) => Num a where  ...
+
+    That's all there is to subclassing really, it's just a typeclass constraint on a typeclass declaration! 
+
+
+
+
+
+A yes-no typeclass
+    See C08004.hs 
+
+
+
+
+
+
+The Functor typeclass
+
+Functor typeclass, which is basically for things that can be mapped over. You're probably thinking about lists now, 
+since mapping over lists is such a dominant idiom in Haskell. And you're right, the list type is part of the Functor typeclass.
+
+    class Functor f where  
+        fmap :: (a -> b) -> f a -> f b  
+
+fmap: takes a function from one type to another (a -> b) and,
+      takes a functor applied with one type "f a" i.e. [a] or Maybe[a] ..etc  and,
+      returns a functor applied with another type "f b" i.e. [b] or Maybe[b] ..etc
+
+the f is not a concrete type (a type that a value can hold, like Int, Bool or Maybe String), 
+but a type constructor that takes one type parameter, f has to be 
+    - typeConstructor: "Maybe", [],  Set ,, But not a concrete type "Maybe a", [a],  Set a
+    - typeConstructor: which takes exactly one param
+
+
+
+instance Functor [] where  
+    fmap = map  
+Notice that we wrote instance Functor [] and not instance Functor [a], because Functor requires a typeConstructor for an instance. 
+
+
+The signature of "map" is        
+map :: (a -> b) -> [a] -> [b]
+map is a functor that takes a function from one type to another and a list of one type and returns a list of another type. 
+
+
+
+instance Functor Maybe where
+    fmap f (Just x) = Just (f x)
+    fmap f Nothing = Nothing
+
+If we map over Nothing, then just return a Nothing. Just like if we map over an empty list, we get back an empty list. 
+If we map over a single value packed up in a Just, then we apply the function on the contents of the Just.
+
+ghci> fmap (++ " HEY GUYS IM INSIDE THE JUST") (Just "Something serious.")  
+Just "Something serious. HEY GUYS IM INSIDE THE JUST"  
+ghci> fmap (++ " HEY GUYS IM INSIDE THE JUST") Nothing  
+Nothing  
+ghci> fmap (*2) (Just 200)  
+Just 400  
+
+
+What about the typeConstructors which takes 2 params?? Either a b ,, Map k v
+
+If we want to make a type constructor an instance of Functor, it has to have a kind of * -> *, 
+which means that it has to take exactly one concrete type as a type parameter. 
+For example, Maybe can be made an instance because it takes one type parameter to produce a concrete type, like Maybe Int or Maybe String.
+
+If a type constructor takes two parameters, like Either, we have to partially apply the type constructor until it only takes one type parameter.
+
+   instance Functor (Either a) where          --Duplicate instance declarations, Defined in ‘GHC.Base’
+       fmap f (Left x) = Left x
+       fmap f (Right x) = Right (f x)
+
+  **  we mapped in the case of a Right value constructor, but we didn't in the case of a Left. **
+
+    -- ghci>  fmap ("aaa "++) (Left "bbb")
+    -- Left "bbb"
+    -- ghci>  fmap ("aaa "++) (Right "bbb")
+    -- Right "aaa bbb"
+
+
+Mapping over a map which contains values of Either's
+will, we can map over a box of either, let's say (Right 1) or (Left 100), as flwg:
+    ghci>  fmap (*200) (Right 1) 
+    Right 200
+
+But mapping over a "box" of Map which contains boxes of Either's, will work as flwg:
+
+    ghci>  let m = Map.fromList [(1,Right 1),(2,Left 2),(3,Right 3),(4,Left 4)]
+    ghci>  fmap (\x-> fmap (*200) x) m
+
+    fromList [(1,Right 200),(2,Left 2),(3,Right 600),(4,Left 4)]
+
+
+
+
+
+
+ReadMore
+
+
+
+
+
+
+Kinds "type of types"
+
+    values like 3, "YEAH" or takeWhile (functions are also values, because we can pass them around and such) each have their own type. 
+    Types are little labels that values carry so that we can reason about the values. But types have their own little labels, called kinds. 
+
+    The kind of a type can be "concrete type" or "type constructor"
+
+    * means that the type is a concrete type.
+
+    * -> * means that the type constructor takes one concrete type and returns a concrete type
+
+        Concrete type:
+            ghci> :k Int  
+            Int :: *  
+
+            ghci> :k Maybe Int  
+            Maybe Int :: *  
+
+
+        TypeConstructor:
+            ghci> :k Maybe  
+            Maybe :: * -> *  
+            Maybe type constructor takes one concrete type (like Int) and then returns a concrete type like Maybe Int
+
+
+            ghci> :k Either  
+            Either :: * -> * -> *  
+            Either takes two concrete types as type parameters to produce a concrete type
+
+
+            ghci> :k Either String  
+            Either String :: * -> *  
+
+            ghci> :k Either String Int  
+            Either String Int :: *  
+
+    ReadMore

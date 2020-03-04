@@ -1,0 +1,78 @@
+
+
+Maybe is used to add a context of possible failure to values. A value can be a Just something or a Nothing. 
+but there's no way to cram some more info in there telling us what kind of failure it was or why it failed.
+
+The "Either l r" type on the other hand, allows us to incorporate a context of possible failure to our values 
+while also being able to attach values to the failure
+An "Either l r" value can either be a Right value, signifying the right answer and a success, or it can be a Left value, signifying failure.
+
+Either l r is similar to Maybe. but unlike "Nothing", there's a value attached when there's an error as well
+so it makes sense for it to be a monad
+
+Remember that only type constructors can be made an instance of "Functor/Applicative/Monad", so (Either l) can be made an instance of monad
+
+
+instance (Error e) => Monad (Either e) where
+    return x = Right x
+    Right x >>= f = f x
+    Left err >>= f = Left err
+    fail msg = Left (strMsg msg)
+
+
+(Error e) =>
+    Notice the constrain that is the type of the value contained in a Left, the one that's indexed by the e type parameter,
+    has to be an instance of the Error type class. 
+    The Error type class is for types whose values can act like error messages. It defines the strMsg function
+    ghci> strMsg "boom!" :: String
+    "boom!"
+
+
+
+>>= In the case of a Right, the function f is applied to the value inside it.
+    In the case of a Left , the Left value is kept, along with its contents, which describe the failure.
+    This is similar to when the monadic value is Just/Nothing
+
+    and as we saw fmap implementation in "instance Functor (Either e)", 
+    mapping "f" over "Right value" return "Right (f value)", while mapping "f" over "Left value" returns the same "Left value"
+
+
+
+- Feeding "Left value" to some "f", the function "f" is ignored and an identical "Left value" is returned. 
+    ghci> Left "boom" >>= \x -> return (x+1)
+    Left "boom"
+
+- Feeding "Right value" to some "f":
+    * if "f" returns "Left value", the function gets applied and returns "Left value"
+    * if "f" returns "Right someValue" we have to define "e" part of our "Either e a" typed value
+      This is due to the "Error e" constraint on the Monad instance.
+
+
+        ghci> Right 3 >>= \x -> return (x + 100)
+        <interactive>:1:0:  
+            Ambiguous type variable `a' in the constraints:
+            `Error a' arising from a use of `it' at <interactive>:1:0-33
+
+
+        ghci> Right 3 >>= \x -> return (x + 100) :: Either String Int
+        Right 103  
+
+Other than this little hangup, using this monad is very similar to using Maybe as a monad. 
+
+
+this is 
+landLeft :: Int -> (Int,Int) -> Either String (Int,Int)  
+landLeft n (left,right)  
+    | abs ((left + n) - right) < 4 = Right (left + n, right)  
+    | otherwise                    = Left ("fell becuase there was " ++ show (left+n) ++ " birds on the left side, and " ++ show right ++ " on the right side.")  
+
+landRight :: Int -> (Int,Int) -> Either String (Int,Int)  
+landRight n (left,right)  
+    | abs (left - (right + n)) < 4 = Right (left, right + n)  
+    | otherwise                    =  Left ("fell becuase there was " ++ show left ++ " birds on the left side, and " ++ show (right+n) ++ " on the right side.")    
+
+routine'' = do  
+    start <- return (0,0)  
+    first <- landLeft'' 2 start 
+    second <- landRight'' 1 first  
+    landLeft'' 2 second

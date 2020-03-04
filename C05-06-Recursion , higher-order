@@ -1,0 +1,161 @@
+
+Recursion
+    Most imperative languages don't have pattern matching so you have to make a lot of if else statements to test for edge conditions / BaseCases. 
+    Here, we simply put them out as patterns.
+
+    maximum' [] = error "maximum of empty list"  
+    maximum' [x] = x  
+    maximum' (x:xs)   
+        | x > maxTail = x  
+        | otherwise = maxTail  
+        where maxTail = maximum' xs  
+
+    We use pattern matching to split a list into a head and a tail. This is a very common idiom when doing recursion with lists, so get used to it. 
+
+    We did quite a bit of recursion so far and as you've probably noticed, there's a pattern here.
+    Usually you define an edge case and thenyou define a function that does something between some element and the function applied to the rest. 
+    It doesn't matter if it's a list, a tree or any other data structure. 
+
+    Tail vs Normal recursion
+        Normal recursion
+        addingN 0 = 0
+        addingN n = n + (addingN (n-1))
+        addingN 5 = 
+                    5 + (addingN 4 )
+                    5 + (        4 + (addingN 3))
+                    5 + (        4 + (        3 + (addingN 2)))
+                    5 + (        4 + (        3 + (        2 + (addingN 1))))
+                    5 + (        4 + (        3 + (        2 + (        1 + addingN 0))))
+                    5 + (        4 + (        3 + (        2 + (        1 +         0))))
+                    5 + (        4 + (        3 + (        2 + (    1    ))))
+                    5 + (        4 + (        3 + (    3    )))
+                    5 + (        4 + (    6    ))
+                    5 + (    10    )
+                    15
+
+        Tail  recursion
+        addingN' 0 acc = acc 
+        addingN' n acc = addingN' (n-1) (acc + n)
+
+        addingN' 5 0 = 
+                    addingN' 4 5
+                    addingN' 3 9
+                    addingN' 2 12
+                    addingN' 1 14
+                    addingN' 0 15
+                    15
+
+        foldRight' f acc (x:xs) = f x (foldRight' f acc xs) -- normal recursion
+
+        foldLeft' f acc (x:xs) = foldLeft' f (f acc x) xs   -- tail  recursion
+
+
+        fb 0 = 1
+        fb 1 = 1
+        fb n = fb (n-1) + fb (n-2)
+
+
+
+
+
+
+Higher order functions
+    Curried functions
+
+    Every function in Haskell officially only takes one parameter. So how is it possible that we defined and used several functions 
+    that take more than one parameter so far? Well, it's a clever trick! All the functions that accepted several parameters so far 
+    have been curried functions. 
+
+------------------------------------------------------------------------
+    js exmple:
+        function g(arg1) {
+            return function (arg2) { return (arg1 + ' ' + arg2) }
+        }
+        
+        g('str3')('str4');
+        Or 
+        k=g('str3');
+        k('str4');
+
+------------------------------------------------------------------------
+Partially applied function from an Infix functoin
+    Creating partially applied function from a Infix functoin which take 2 parameters:
+
+    The infix      3 + 5, where 3 is 1st param and 5 is 2.nd param
+    is the same   (+5) 3   
+    or            (+) 3 5 
+    or            (3+) 5
+    or            f = (3+);   f 5
+
+    With just the first param
+
+            ghci>  let gt_3 = (<) 3
+            ghci>  gt_3 2
+            False
+            ghci>  gt_3 4
+            True
+            ghci>  gt_3 100
+            True
+            ghci>  gt_3 (-1)
+            False
+
+            divideTenBySomething :: (Floating a) => a -> a 
+            ghci>  divideTenBySomething = (/) 10
+            ghci>  divideTenBySomething 2
+            5.0
+            ghci>  divideTenBySomething 20
+            0.5
+
+
+    With just the second param
+            divideByTen :: (Floating a) => a -> a  
+            divideByTen = (/10)  
+            ghci>  divideByTen 1
+            0.1
+            ghci>  divideByTen 20
+            2.0
+
+
+    The only special thing about partially applied function from a Infix functoin is "-". 
+    (-4) means minus four. So if you want to make a function that subtracts 4 from the number it gets as a parameter, partially 
+    apply the subtract function like so: (subtract 4).
+
+
+    ghci> let listOfFuns = map (*) [0..] -- ==> listOfFuns = [(0*),(1*),(2*),(3*),(4*),(5*)..
+    ghci> (listOfFuns !! 4) 5   -- the 4th index is (4*), so (4*) 5 = 20
+    20  
+------------------------------------------------------------------------
+
+applyTwice :: (a -> a) -> a -> a  --parentheses indicate that the first parameter is a function 
+applyTwice f x = f (f x)  
+
+ghci> applyTwice (+3) 10    means->    f x = (+3) ((+3) 10)    means->    (10 + 3) + 3  ==> 16
+
+ghci> applyTwice (++ " HAHA") "HEY"  means->  f x = (++ " HAHA") ((++ " HAHA") "HEY")  means->  "HEY" ++ " HAHA" ++ " HAHA"  ==> 16
+
+
+
+Recall how we solved the problem of finding right triangles with a certain circumference. 
+With imperative programming, we would have solved it by nesting three loops and then testing if the current combination 
+satisfies a right triangle and if it has the right perimeter. If that's the case, we would have printed it out to the screen.
+
+In functional programming, that pattern is achieved with mapping and filtering. You make a function that takes a value and
+produces some result. We map that function over a list of values and then we filter the resulting list out for the results that 
+satisfy our search. 
+
+Thanks to Haskell's laziness, even if you map something over a list several times and filter it several times, 
+it will only pass over the list once.
+
+
+-- find the sum of all the odd numbers squared that are smaller than 10,000
+sum (takeWhile (<10000) (filter odd (map (^2) [1..])))  
+sum (takeWhile (<10000) [n^2 | n <- [1..], odd (n^2)])  
+
+f x
+    | odd x = a : f a
+    | otherwise = b : f 
+    where a = (x*3) + 1
+          b = x / 2
+
+
+

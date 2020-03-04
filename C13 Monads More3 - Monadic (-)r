@@ -1,0 +1,62 @@
+Monadic function "The reader monad"
+
+    we saw that the function type, (->) r is an instance of Functor. 
+        f . g = f (g x)
+    
+    We've also seen that funfunction type, (->) r is an instance of applicative functors
+        f <*> g = \x -> f x (g x)
+        (+) <*> (+3) $ 5
+
+        f <$> g <*> h = \x -> f  (g x) (h x)
+        (+) <$> (+3) <*> (*100) $ 5
+
+Let's take a look at the Monad instance implementation for (->) r
+
+    instance Monad ((->) r) where  
+        return x = \_ -> x  
+        g >>= f = \w -> f (g w) w  
+
+
+**********************************************************************************************
+*    At first ">>=" looks like the "<*>" which is defined in "applicative functor"           *
+*    but actually the diffrence is:                                                          *
+*                                                                                            *
+*                applicative functor instance for (->)r                                      *
+*       ghci>  (+)  <*> (+3) $ 5          f <*> g = \x -> f x (g x)                          *
+*                                                                                            *
+*                monadic "bind"   instance   for  (->)r                                      *
+*       ghci>  (+3) >>=  (+) $ 5          f >>= g = \w -> g (f w) w                          *
+*       13                                                                                   *
+**********************************************************************************************
+
+\x-> ((x*3) + (x+6)) / (x*2)
+
+The Applicative functor's operator  <*>
+    ghci>  (\x y z-> (x + y) / z ) <$> (*3) <*> (+6) <*> (*2) $ 2      =          liftM3 (\x y z -> (x + y) / z) (*3) (+6)  (*2)  $ 2
+    3.5
+
+The  Monad's  "bind"  operator  >>= 
+    ghci>  ((*3) >>= \x-> (+6) >>= \y-> (*2) >>= \z-> return ((x + y) / z ) ) 2    -- notice the whole expression have to be wrapped in () ,, ending with "$ 2" instead, won't work
+    3.5
+
+ 
+
+ 
+The Monad's do-notaion 
+    calcStuff = do
+                    x <- (*3)  
+                    y <- (+6)  
+                    z <- (*2)  
+                    return ((x + y) / z) 
+
+    ghci>  calcStuff 2
+    3.5
+
+    IMPORTANT: the param 2 is sent to the functions (*3),(+6) and (*2). 
+               "return ((x + y) / z)" does as well, but it ignores it and always presents ((x + y) / z) as the result.
+
+So if we have a lot of functions that are all just missing one parameter and they'd eventually be applied to the same thing, 
+we can use the reader monad to sort of extract their future results and the >>= implementation will make sure that it all works out.
+
+
+

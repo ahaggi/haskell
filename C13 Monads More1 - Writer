@@ -1,0 +1,266 @@
+For a Few Monads More
+
+We've met the "Maybe" and "list" monads, in this chapter, we're going to learn about a few other monads. 
+
+The monads that we'll be exploring are all part of the mtl package. A Haskell package is a collection of modules. 
+
+
+Let's take a look at the Monoid instance implementation "Writer monad" 
+
+let us say we have a function that takes an Int and returns a tuple (Bool, String), consider the "String as a log"
+
+    isBigGang :: Int -> (Bool, String)  
+    isBigGang x = (x > 9, "Compared gang size to 9.")  
+
+If we have a function that takes a normal value and returns a value with a context, 
+how do we take a value with a context and feed it to the function?
+
+
+Consider we want to feed "isBigGang" the param  (3, "Smallish gang.")!!  so we want to send (Int, String) to 
+function that takes "Int" and returns (Bool,String)
+
+
+When we have a value with a context and we want to feed it to a function, we usually try to separate the actual value from 
+the context and then try to apply the function to the value and then see that the context is taken care of. In the Maybe monad, 
+we checked if the value was a "Just x" and if it was, we took that x and applied the function to it. 
+
+    applyLog :: (a,String) -> (a -> (b,String)) -> (b,String)  
+    applyLog (x,log) f = let (y,newLog) = f x 
+                         in (y,log ++ newLog)
+
+    ghci> (3, "Smallish gang.") `applyLog` isBigGang  
+    (False,"Smallish gang.Compared gang size to 9")  
+
+Now let us say we have a function
+
+    ghci> ("Tobin","Got outlaw name.") `applyLog` (\x -> (length x, "Applied length."))  
+    (5,"Got outlaw name.Applied length.")  
+
+
+Making "applyLog" work on any []
+    Right now, applyLog takes values of type (a,String), but does it have to be String/[Char]? No.
+
+    We can change "applyLog"'s type to be:
+        applyLog :: (a,[c])    -> (a -> (b,[c]))    -> (b,[c])  
+
+        ghci>  applyLog ( 5 , [4,5,6,7,8] ) (\x -> ( x + 2, [9,0]))  
+        (7,[4,5,6,7,8,9,0])
+        
+        ghci>  applyLog ( 3 , "abc" ) (\x -> ( x + 2, "de"))  
+        (5,"abcde")
+
+
+Making "applyLog" work on any Monoid
+    Would this work for bytestrings? Yes
+
+    To make "applyLog" work on any Monoid([a], ByteString [a], Maybe a .. ), we need to change "++" with "mappend" 
+
+        applyLog :: (Monoid m) => (a,m) -> (a -> (b,m)) -> (b,m)  
+        applyLog (x,log) f = let (y,newLog) = f x 
+                         in (y,log `mappend` newLog)  
+
+
+        ghci>  applyLog ( 3 , pack [97,98,99] ) (\x -> ( x + 2, pack [100,101]))    --Notice that: pack [Int] -> [Char]
+        (5,"abcde")
+
+
+        ghci>  applyLog ( 3 , Just"abc" ) (\x -> ( x + 2, Just"de"))  
+        (5,Just "abcde")
+
+
+        addDrink "beans" = ("milk", Sum 25)
+        addDrink "jerky" = ("whiskey", Sum 99)
+        addDrink _ = ("beer", Sum 30)
+
+
+        ghci> ("beans", Sum 10) `applyLog` addDrink  
+        ("milk",Sum {getSum = 35})          
+
+
+        Milk costs 25 cents, but if we eat it with beans that cost 10 cents, we'll end up paying 35 cents. Now it's clear how the attached value doesn't always have to be a log, 
+        it can be any monoid value and how two such values are combined into one depends on the monoid.
+
+
+------------------------------------
+
+
+The Writer type
+    Now that we've seen that a value with an attached monoid "Sum Int" acts like a monadic value
+
+    The Control.Monad.Writer module exports the Writer w a type along with its Monad instance.
+
+
+    *****************************************************************************
+    *   The typeConstructor Writer has valueConstructor "writer" NOT "Writer"   *
+    *   The same as                                                             *
+    *   The typeConstructor Maybe has valueConstructors "Just"  and  "Nothing"  *
+    *****************************************************************************
+
+
+    --  newtype Writer w v = Writer { runWriter :: (v, w) } OUTDATED!!
+        newtype WriterT w v = writer { runWriter :: (v, w) }  use this one, 
+                                                              notice the "writer { r.."    Not    "Writer { r.."
+
+    As we can see it's a normal tuple (v,w) wrapped in a newtype so that it can be made an instance of Monad. 
+    To make the tuple an instance of Monad in such way that `mappend` gets applied to the second component of the tuple "w" ,
+    the Writer instance for (v,w) is "Writer w v",, to see similar example "C11 003 newtype keyword"
+
+    Becuase we want the typeConstructor (Writer w) to be made instance of Monad, where "w" is an instance of Monoid
+    
+    ghci> runWriter (return someV ::Writer w v)
+    (someV, memptyOfW)
+
+    ghci> return 3 ::Writer String Int  -- Notice we said ::Writer String Int
+    Writer(3,"")                        -- The result is    Writer(Int,String) 
+
+    
+
+
+
+    instance (Monoid w) => Monad (Writer w) where
+        return x = writer (x, mempty)                        --notice the "writer" Not "Writer"
+        (writer (x,v)) >>= f   = let (writer (y, v')) = f x 
+                                                        in writer (y, v `mappend` v')   -- *** v is of the type w *** 
+
+
+    First off, let's examine >>=. Its implementation is essentially the same as "applyLog", only now that our tuple is wrapped in the Writer 
+    We take the value x and apply the function f to it. This gives us a "Writer w a" value and we use a let expression to pattern match on it.
+    We present y as the new result and use mappend to combine the old monoid "v" value with the new one" v' " . "Writer (y, v `mappend` v')"
+    We pack that up with the result value in a tuple and then wrap that with the Writer constructor so that our result is a Writer value instead of just an unwrapped tuple.
+
+    Notice the constrain "(Monoid w) =>"  THE "Writer w" is MONAD but "w" has to be "MONOID"
+    because we're using "mempty on type w" in the "return x" function, and " mappend on the type w" in the ">>=" function
+
+
+    return: takes a value and wraps it in a default minimal context, But what would such a context be for Writer values? 
+
+        return x = Writer (x, mempty) 
+
+        That depends on the Monoid type of the monoid-value:
+            if the monoid-value is of type String  the identity will be  ""
+            if the monoid-value is of type  [a]  the identity will be  []
+            if the monoid-value is of ourOwntype "Any" the identity will be False
+
+
+        ghci>  import  Control.Monad.Writer
+
+        ghci>runWriter  (return 3 ::Writer String Int)
+        (3,"")
+        ghci>runWriter  (return 3 ::Writer (Sum Int) Int)
+        (3,Sum {getSum = 0})
+        ghci> runWriter (return 3 ::Writer [Int] Int)
+        (3,[])
+        ghci> runWriter (return 3 ::Writer [Bool] Int)
+        (3,[])
+
+        ghci> runWriter (return 3 ::Writer (Maybe String) Int)  
+        (3,Nothing) 
+
+
+
+
+
+chaining of "Writer" monadic applications with >>=:
+
+    We can chain 2 diff functions 
+        function which returns "writer (someInt, someString)",
+        function which returns "writer (someBool, someString)".
+    as long as the "monoid part" is the same AND the function "f" which will be fed (someInt and someBool) can deal with that.
+    Example: read below "tell function".
+
+
+    appendNumber x = writer (x, ["Got number: " ++ show x])  -- in the book this called logNumber
+
+        ghci>  appendNumber 2
+        WriterT (Identity (2,["Got number: 2"]))
+
+        ghci>  runWriter $ appendNumber 2
+        (2,["Got number: 2"])
+
+    ghci>  runWriter $ appendNumber 2 >>= \x-> appendNumber 3 >>= \y->appendNumber 4 >>= \z->  return(x*y*z)
+    Explaination:
+    runWriter $   ppendNumber 2       >>= \x-> appendNumber 3        >>= \y->appendNumber 4        >>= \z->  return(x*y*z)
+    ..          (2,["Got number: 2"]) >>= \2-> writer(3,["Got number: 3"]) >>= \3-> writer(4,["Got number: 4"]) >>= \4->  return(2*3*4)
+                (3,["Got number: 2","Got number: 3"])                      >>= \3-> writer(4,["Got number: 4"]) >>= \4->  return(2*3*4)
+                (4,["Got number: 2","Got number: 3","Got number: 4"])                                           >>= \4->  return(2*3*4)
+    ..          (4,["Got number: 2","Got number: 3","Got number: 4"])                                           >>= \4->  writer(24,[])
+    (24,["Got number: 2","Got number: 3","Got number: 4"])
+
+
+    IMPORTANT to remember that:
+        - appendNumber 2: returns a MONADIC value   "Writer (2,["Got number: 2"])"
+        - >>= takes "MONADIC value" and a function, extracts the value from its monadic form, and feeds it to the function
+        - \z->  return(x*y*z) : will wrap the result in Writer (w,v), where "w" is the MONOID
+                                ( v,                     w                           )    THE TYPE WRITER IS INVERTED TUPLE 
+                                (24,["Got number: 2","Got number: 3","Got number: 4"])
+        - ..(v `mappend` v') : will take care of all the MONOID "w"
+
+
+
+
+
+Using do notation with Writer
+
+    IMPORTANT to read:
+                        the prev section chaining of "Writer" monadic applications with >>=
+                        "do notation"  at  "C12 A Fistful of Monads"
+
+    multWithLog = do
+        a <- appendNumber 3
+        b <- appendNumber 5
+        return (a*b)
+
+    ghci>  multWithLog
+    (15,["Got number: 3","Got number: 5"])
+
+
+
+
+tell function:
+Remember that the Monad "Writer w" is "::Writer (someMonoid)  a" which will produce the value (a, someMonoid), where "a" is some concreteValue
+
+We used return a, to produce a monadic value of type Writer with the result of (a, memptySomeMonoid)
+    ghci> runWriter (return 3 ::Writer [Int] Int)
+    (3,[])
+
+But to produce a monadic value which have "dummy" a + "someMonoid", we can use tell
+    ghci>  runWriter (tell [3] ::Writer [Int] ())
+    ((),[3])
+
+How this is useful??
+    Sometimes we just want some monoid value to be included at some particular point. For this, the tell function is useful. It's part of the MonadWriter type class 
+
+    it takes a monoid value, like ["This is going on"] and creates a Writer value that presents the dummy value () as its result 
+    but has our desired monoid value attached.
+            do
+                a <- appendNumber 3
+                b <- appendNumber 5
+                c <- tell ["Gonna multiply these two"]    NOTICE that "c" is just a dummy value which = () its NOT an Int!
+                return (a*b)
+                
+                (15,["Got number: 3", "This is going on", "Got number: 5"])
+
+
+
+
+
+Adding logging to programs
+
+    greatest common divisor
+        gcd' :: Int -> Int -> Int  
+        gcd' a b   
+            | b == 0    = a  
+            | otherwise = gcd' b (a `mod` b)  
+
+        ghci> gcd' 8 3  
+        1  
+
+    we want to equip our result with a context, and the context will be a monoid value that acts as a log.
+
+    Look at the example gcd' C13_.hs
+    we were able to change our ordinary algorithm to one that reports what it does as it goes along just by changing normal values to monadic values and 
+    letting the implementation of >>= for Writer take care of the logs for us. We can add a logging mechanism to pretty much any function. 
+    We just replace normal values with Writer values where we want and change normal function application to >>= .
+
+
+

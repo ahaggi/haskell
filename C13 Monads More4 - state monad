@@ -1,0 +1,280 @@
+The state monad
+
+    some problems are inherently stateful in that they rely on some state that changes over time. 
+    While such problems aren't a problem for Haskell, they can be a bit tedious to model sometimes. 
+    That's why Haskell features a thing called the "state monad"
+
+        ghci>  let rGen = mkStdGen 100
+        ghci>  random (rGen) :: (Bool, StdGen)
+        (True,4041414 40692)
+
+        It took a generator gen and then "random (rGen)" returned a Bool value along with a new generator "4041414 40692". 
+        Take a look at the example (C09 2Randomness - threeCoins )
+
+    Stateful computation is a function that takes a state and returns a result and a new state,and can be thought of as a value with a context as well.
+    The actual value is the result, 
+    The context is that we have to provide some initial/prev state to actually get that result 
+        "random" is the stateful computation 
+        "True" is the result
+        "rGen" is the initial/prev state
+        "4041414 40692" is the new state
+
+
+
+Implementing a stack
+
+    We'll use a list to represent our stack and the head of the list will be the top of the stack. 
+    To help us with our task, we'll make two functions: pop and push. 
+
+    pop (x:xs) = (x,xs)
+    push a xs = ((),a:xs)  --() as the result, because pushing an item onto the stack doesn't have any important result value
+
+    stackManip stack = let  
+                        ((),newStack1) = push 3 stack  
+                        (a ,newStack2) = pop newStack1  
+                        in pop newStack2  
+
+    stackManip pushes an elem and pops 2 elems, it returns the last pop-ed elem and a new stak "state"
+    stackManip is itself a stateful computation. We've taken a bunch of stateful computations and we've sort of glued them together. 
+
+
+***********************************************************************************************************************************
+***********************************************************************************************************************************
+
+
+
+The State monad
+
+    newtype State s a = state { runState :: s -> (a,s) }
+
+    ghci>  let i = (state $ \s -> ('X',s)) ::  State Int Char -- Notice Int is the state
+    ghci>  (runState i) 1
+    ('X',1)
+
+    Notice that State type is just a FUNCTION TYPE similar to the type "DiffList" at  "C13 Monads More2 - Difference lists"
+    inverted tuple which is similar to:
+                                    - Writer "C13 Monads More1 - Writer"
+                                    - example "C11 003 newtype keyword"
+
+****************************************************************************************************************************
+* Important:  runState takes aStatefulComputation wrapped in (state $ fn ) and returns "fn"                                *
+*                                                                                                                          *
+*            runState (state $\s-> aStatefulComputation)                                                                   *
+*            aStatefulComputation initState                                                                                *
+*            (fst , snd)                                                                                                   *
+*                                                                                                                          *
+*            ( runState    ((state $ \s -> ('X',s)) ::  State Int Char) )            1                                     *
+*                                   aStatefulComputation                  initialState/prevState                           *
+*                                                                                                                          *
+*                evalState and execState just select one of the two values returned by runState.                           *
+*                evalState returns the result, while                                                                       *
+*                execState returns the state                                                                               *
+*                                                                                                                          *
+*                                   (runState  (  (state $ \s -> ('X',s)) ::  State Int Char ))            1               *
+*                                                    aStatefulComputation                      initialState/prevState      *
+*                                                                                                                          *
+*                                   (evalState  (  (state $ \s -> ('X',s)) ::  State Int Char ))           1               *
+*                                                    aStatefulComputation                      initialState/prevState      *
+****************************************************************************************************************************
+
+ghci>  (runState   (  (state $ \s -> ('X',s)) ::  State Int Char ))            1
+('X',1)
+ghci>  (evalState  (  (state $ \s -> ('X',s)) ::  State Int Char ))            1
+'X'
+ghci>  (execState  (  (state $ \s -> ('X',s)) ::  State Int Char ))            1
+1
+
+
+
+    instance Monad (State s) where  
+        return x = state $ \s -> (x,s)  
+        (State h) >>= f = state $ \s -> let (a, newState) = h s  
+                                            (State g) = f a  
+                                        in  g newState  
+
+
+Wrapping push and pop function with the monadic type State 
+
+        pop = state $ \(x:xs) -> (x, xs)
+        or
+        pop_ (x:xs) = (x, xs)
+        pop = state $ pop_   -- pop_ is partially applied
+
+
+        push a = state $ \xs -> ((), a : xs)
+        or
+        push_ x xs = ((), x : xs)
+        push x = state $ push_ x   -- push_ is partially applied
+
+    return x: 
+        puts a value in a minimal context. So return will make a stateful computation that 
+        presents a certain value as the result and keeps the state unchanged.
+
+        Important: trying to execute "runState (return 'X') :: Int -> (Char, Int)", without providing an initState, wouldn't work..
+                   Becuase the State is a type representing a FUNCTION similar to "DiffList" ,, Functions couldn't be printed.
+
+        ghci>  let i = runState (return 'X') :: Int -> (Char, Int)   
+        ghci>  let i = runState (state $ \s -> ('X',s)) :: Int -> (Char, Int)
+        ghci>  let i = (\s -> ('X',s)) :: Int -> (Char, Int)
+        ghci>  i 1
+        ('X',1)
+
+        ghci>  let i = (return 'X') :: State Int Char -- Notice that the state is Int
+        ghci>  (runState i) 1
+        ('X',1)
+
+
+        ghci>  (runState (do { put 5; return 'X' })) 1
+        ('X',5)
+                initial state = 1 :: Int
+                final value = 'X' :: Char
+                final state = 5 :: Int
+
+
+    >>=  :
+    TLDR; 
+        (>>=) is given a StatefulComputation (h) and a function (f) that is used to create another StatefulComputation (g) from 
+        the result of the first one. 
+        The two StatefulComputations are combined into a function that takes the initial state (s) and returns 
+        the second result and the third state (i.e. the output of the second StatefulComputation (g)). 
+        Overall, (>>=) here allows us to run two StatefulComputations in sequence, while allowing the result of the first stage to 
+        influence what happens in the second one. 
+
+
+    h >>= \v -> g        which is h >>= f
+        h and g are StatefulComputations which means they produce "state (\prevState -> ( res , newState))"
+        How to send the (hRes , hState) of "h" to "g"?
+
+        if we say (h) is "pop"  and f is "\prevRes-> pop"   i.e    pop >>= \prevRes-> pop    Where pop is "state $ \(x:xs) -> (x,xs)"
+
+
+        h >>= f = state $ \s -> let (hRes, hState) =(runState h) s
+                                    g = runState (f hRes)
+                                in  g newState
+
+
+        we give the stateful computation h the init state s 
+
+
+
+                (state $ \(x:xs) -> (x,xs) ) >>= f   =   state $ \s -> 
+                                                                    let (hRes, hState)   =       (runState h)          s        
+                                                                        (1,    [2,3]  )  =   (\(x:xs) -> (x,xs))    [1,2,3]
+
+                                                                        g         =     runState (f hRes)
+                                                                       pop        = (\prevRes-> pop) 1             -- IF  f DOES NOT TAKE "prevRes" AS PARAM it will bw like (\x-> 1+1) 1000  = 2
+                                                                                                                        runState ( pop >>= \x-> push x >>= \()-> (return 'X') :: State Stack Char   ) [1,2]
+                                                                    in         g             hState  
+                                                                       \(x:xs) -> (x,xs))     [2,3]
+
+
+                                                ghci>  ( runState ( pop >>= \prevRes-> pop ) ) [1,2,3]
+                                                (2,[3])  -- (gRes,gState)
+
+
+
+    ghci>  (runState ( pop >>= \prevRes-> pop >>= \prevRes-> push 0  >>= \prevRes-> (return 'X') :: State Stack Char   )) [1,2]
+                    (x:y:xs)     (y:xs)                (xs)                   (0:xs)
+    ('X',[0])
+
+
+
+**********************************************************************************************************************************
+* IMPORTANT "pop >>= pop" wouldn't work. it has to be   "pop >>= \x -> pop"  ,, due to ">>=" Implementation, read h >>= \v -> g  *
+**********************************************************************************************************************************
+
+
+
+What if the chaining of 2 StatefulComputations depends on the res of the first one?
+    pop one number off the stack and then if that number is 5 we just put it back onto the stack and stop but
+    if it isn't 5, we push 3 and 8 back on.
+
+    ghci>  (runState $ pop >>= \prevRes-> if (prevRes == 5) then (push 5) else (push 3 >>= \v-> push 8) ) [0,0,0]
+    ((),[8,3,0,0])
+
+    ghci>  (runState $ do {a <- pop; if a == 5 then push 5 else (do{push 3; push 8}) })[0,0,0]
+    ghci>  (runState (do; a <- pop; if a == 5 then push 5 else (do; push 3; push 8 )) ) [0,0,0]
+
+
+
+***********************************************************************************************************************************
+* The type of the result in each of "push" and "pop" are diffrent,, while push return (() , [Int]) pop returns (Int, [Int])       *
+***********************************************************************************************************************************
+
+
+MonadState (get & put)
+
+get: set the result value to the state and leave the state unchanged. 
+     get = State $ \s -> (s,s)    
+     
+    can be used to manipulate the init state.
+    ghci>  (runState (               get >>= \state-> if (length state > 0) then pop else (return (-1)  ) )) []
+    ghci>  (runState ( do{  state <- get;     state<- if (length state > 0) then pop else (return (-1)} ) )) []
+    (-1,[])
+
+
+
+put: sets the result value to () and set the state value. 
+
+    put newState = State $ \s -> ((),newState)  
+
+    ghci>  (runState (do { put 5; return 'X' })) -- Missing the initState, notice that "put" does not sets the initState, it changes it to something else 
+    ghci>  (runState (do { put 5; return 'X' })) 1
+    ('X',5)
+            initial state = 1 :: Int 
+            final value = 'X' :: Char
+            final state = 5 :: Int
+
+    ghci>   (runState ( pop >>= \prevRes-> pop >>= \prevRes-> put [9,9,9] >>= \prevRes-> (return 'X') :: State Stack Char   )) [1,2]
+    ('X',[9,9,9])
+
+    ghci>  (runState $      put [1,2,3,4]   >>=   \prevRes-> pop    >>=    \prevRes-> pop     >>=     \prevRes-> pop >>= \prevRes-> (return 'X')  ) [0,0]
+    ghci>  (runState ( do { put [1,2,3,4];     currentRes1<- pop;     currentValue2<- pop;       currentValue3<- pop;                return 'X' } )) [0,0]
+
+    ('X',[4])
+
+    ghci>  (runState $      get >>= \initState-> (if (length initState >= 3) then return () else put [1,2,3,4])   >>=   \prevRes-> pop    >>=    \prevRes-> pop     >>=     \prevRes-> pop   ) [0,1]
+    (3,[4])
+    ghci>  (runState (      get >>= \initState-> (if (length initState >= 3) then return () else put [1,2,3,4])   >>=   \prevRes-> pop    >>=    \prevRes-> pop     >>=     \prevRes-> pop   )) [0,1,2]
+    (2,[])
+
+    ghci>  (runState (      get >>= \initState-> (if (length initState >= 3) then return 'k' else put [1,2,3,4])  >>=.. Err because
+                                                                                                                                   "put"    returns the state ( ()  , [Int])
+                                                                                                                                   "return" returns the state ( Char, [Int])
+
+    NOTICE that if expression has to a monadic State which have the same type in (value, state).
+    i.e. if "then" = (someTypeN , someTypeM), "else" has to be = (someTypeN , someTypeM).
+    BUT in case of 
+                statefulComputation1 >>= prevRes-> statefulComputation2
+    statefulComputation1 and statefulComputation2 can returns result of diffrentType but the state has to be the sameType (diffrentType , sameType)
+
+
+
+
+***********************************************************************************************************************************
+
+
+
+
+Wrapping other statefulComputation with the State type:
+
+    The function "random" takes a random generator and produces a random number along with a new generator. 
+    We can see that it's a stateful computation, so we can wrap it in the State newtype constructor and then use it as a monadic value.
+
+    randomSt :: (RandomGen g, Random a) => State g a  
+    randomSt = State random  
+
+    So instead of this 
+        threeCoins gen =
+                        let (firstCoin, newGen) = random gen
+                            (secondCoin, newGen') = random newGen
+                            (thirdCoin, newGen'') = random newGen'
+                        in (firstCoin, secondCoin, thirdCoin)
+
+    We can use 
+        threeCoins :: State StdGen (Bool,Bool,Bool)
+        threeCoins = do  
+                    firstCoin  <- randomSt  
+                    secondCoin <- randomSt  
+                    thirdCoin  <- randomSt  
+                    return (firstCoin, secondCoin, thirdCoin)

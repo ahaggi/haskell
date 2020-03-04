@@ -1,0 +1,181 @@
+Making monads
+
+we usually make a type that whose purpose is to model an aspect of some problem and then later on if we see 
+that the type represents a value with a context and can act like a monad, we give it a Monad instance.
+
+Let's say that every item in the list comes with another value, a probability of it happening. The probabilities should always add up to 1
+
+    [(3,0.5),(5,0.25),(9,0.25)]  
+
+        In mathematics, probabilities aren't usually expressed in percentages, but rather in real numbers between a 0 and 1. 
+
+        Floating point numbers can get real messy real fast because they tend to lose precision, so Haskell offers us a data type 
+        for rational numbers that doesn't lose precision. That type is called Rational and it lives in Data.Ratio. 
+
+            ghci> 1%4
+            1 % 4
+            ghci> 1%2 + 1%2
+            1 % 1
+            ghci> 1%3 + 5%4
+            19 % 12
+
+    ghci> [(3,1%2),(5,1%4),(9,1%4)]
+    [(3,1 % 2),(5,1 % 4),(9,1 % 4)]
+
+
+let's wrap this into a newtype:
+    newtype Prob a = Prob { getProb :: [(a,Rational)] } deriving Show  
+
+    ghci>  getProb $ Prob [(3,1%2),(5,1%4),(9,1%4)]
+    [(3,1 % 2),(5,1 % 4),(9,1 % 4)]
+
+
+
+Making ourOwn type an instance of Functor:
+    The list is a functor, so this should probably be a functor as well
+
+        instance Functor Prob where  
+            fmap f (Prob xs) = Prob $ map (\(x,p) -> (f x,p)) xs  
+
+    We unwrap it from the newtype with pattern matching, apply the function f to the values while keeping 
+    the probabilities as they are and then wrap it back up.
+
+    So mapping someFunction over ourOwn Functor "Prob", can change the value but not the probability of the value.
+
+
+Making ourOwn type an instance of Functor:
+
+    Can we make ourOwn type "Prob" an instance of Monad?
+        
+    To make something an instance of monad we need to define "return" and ">>=". 
+    since ourOwn type "Prob" is a list, it'll help us to take a look at monad instance for list
+
+    return: let's think about return. How does it work for lists? 
+            It's put some value in default minimal context i.e. a singleton list
+            But "Prob" has probability for each elem,Well, return x is supposed to make a monadic value that always 
+            presents x as its result, so it doesn't make sense for the probability to be 0. If it always has to present it 
+            as its result, the probability should be 1!
+
+            So we want something like this:
+                ghci> return 'q' 
+                Prob {getProb = [('q',1)]}
+
+    >>=: what about ">>=". How does it work for lists? 
+          xs >>= f = concat (map f xs) , where "f" takes an elem and returns a list, but after "concat" what the probability
+          for each elem should be?
+
+          One approach based on  "m >>= f" is "fmap (getProb.ff) m" 
+          
+          "f" takes an elem "v" from "(v, r)" and returns "Prob[(v', r/n)]" where n is the number of elems that f returns for 
+          each elem that f takes
+
+          Consider this:
+
+            ghci>  let m = Prob [(3,1%2),(5,1%4),(9,1%4)]
+
+            ghci>  ff x = Prob [(x, 1/2), (-x, 1/2)]
+
+            ghci>  fmap (getProb.ff) m
+            Prob {getProb = [
+                            ([(3,1 % 2),(-3,1 % 2)]  ,1 % 2),
+                            ([(5,1 % 2),(-5,1 % 2)]  ,1 % 4),
+                            ([(9,1 % 2),(-9,1 % 2)]  ,1 % 4)
+                            ]}
+
+
+            Notice that the result is of type "Prob ( [ (v, rational ) ] , rational)" But how can we get it to "Prob (v, rational) 
+            Take a look at flatten'
+            ghci>  flatten' (fmap (getProb.ff) m)
+            Prob { getProb = [(3,1 % 4),(-3,1 % 4),(5,1 % 8),(-5,1 % 8),(9,1 % 8),(-9,1 % 8)] }
+
+            So >>= :
+                    m >>= f = flatten' (fmap (getProb.ff) m) 
+
+            ------------------------------------
+            
+            Another approach is based on that "m >>= f" is concat (fmap f m) similar to "xs >>= f" is concat (fmap f xs)
+
+            ghci>  let m = Prob [(3,1%2),(5,1%4),(9,1%4)]
+            ghci>  ff x = Prob [(x, 1/2), (-x, 1/2)]
+
+            ghci>   fmap ff m
+            Prob {getProb = [(Prob {getProb = [(3,1 % 2),(-3,1 % 2)]},1 % 2),(Prob {getProb = [(5,1 % 2),(-5,1 % 2)]},1 % 4),(Prob {getProb = [(9,1 % 2),(-9,1 % 2)]},1 % 4)]}
+
+            Notice that the result is of type "Prob ( Prob (v, rational) , rational)" But how can we get it to "Prob (v, rational)
+            Take a look at flatten
+
+            ghci>  flatten (fmap ff m)
+            Prob { getProb = [(3,1 % 4),(-3,1 % 4),(5,1 % 8),(-5,1 % 8),(9,1 % 8),(-9,1 % 8)] }
+
+            So >>= :
+                    m >>= f = flatten (fmap ff m) 
+
+
+    Finally:
+        instance Monad Prob where
+            return x = Prob [(x,1%1)]
+            m >>= f = flatten (fmap f m)
+            fail _ = Prob []
+
+    We also defined the fail function, which is the same as it is for lists, so if there's a pattern match failure in a do expression,
+    a failure occurs within the context of a probability list.
+
+    Due to Functor-Applicative-Monad Proposal we have to define an instance of Applicative for Prob
+
+    It's also important to check if the monad laws hold for the monad that we just made. 
+
+        - Left identity: return x >>= f is the same damn thing as f x
+            ghci>  return 2 >>= ff
+            Prob {getProb = [(2,1 % 2),(-2,1 % 2)]}
+            ghci>  ff 2
+            Prob {getProb = [(2,1 % 2),(-2,1 % 2)]}
+
+
+        - Right identity: m >>= \x-> return x is no different than m
+            ghci>  let m = return 'a' :: Prob Char
+            ghci>  m
+            Prob {getProb = [('a',1 % 1)]}
+            ghci>  m >>= \x-> return x
+            Prob {getProb = [('a',1 % 1)]}
+
+        - f <=< (g <=< h) should be the same as (f <=< g) <=< h
+            ghci>  return 2 >>= \x-> ff x >>= (\y-> ff y >>= \z-> ff z) 
+            Prob {getProb = [(2,1 % 8),(-2,1 % 8),(-2,1 % 8),(2,1 % 8),(-2,1 % 8),(2,1 % 8),(2,1 % 8),(-2,1 % 8)]}
+            ghci>  return 2 >>= (\x-> ff x >>= \y-> ff y) >>= \z-> ff z 
+            Prob {getProb = [(2,1 % 8),(-2,1 % 8),(-2,1 % 8),(2,1 % 8),(-2,1 % 8),(2,1 % 8),(2,1 % 8),(-2,1 % 8)]}
+
+
+Coins:
+
+Say we have:
+    two normal coins and 
+    one loaded coin that gets tails an astounding nine times out of ten and heads only one time out of ten. 
+If we throw all the coins at once, what are the odds of all of them landing tails? 
+
+    ghci>  [1,2,3] >>= \x-> [4,5,6] >>= \y-> return y
+    [4,5,6,4,5,6,4,5,6] -- foreach elem in [1,2,3] return [4,5,6]
+
+    ghci>  [1,2,3] >>= \x-> [4,5,6] >>= \y-> return x
+    [1,1,1,2,2,2,3,3,3]
+
+
+    ghci>  loadedCoin
+    Prob {getProb = [(Heads,1 % 10),(Tails,9 % 10)]}
+    ghci>  coin
+    Prob {getProb = [(Heads,1 % 2),(Tails,1 % 2)]}
+
+
+    ghci>  loadedCoin >>=            \x-> coin                                           >>= \y-> return y
+                          \x-> Prob {getProb = [(Heads,1 % 10),(Tails,9 % 10)]}
+                          flatten $ Prob {getProb = [(  coin  ,  1 % 10),(  coin  ,  9 % 10)]}
+                          Prob {getProb = [(Heads,1 % 20),(Tails,1 % 20),(Heads,9 % 20),(Tails,9 % 20)]}
+
+
+    Prob {getProb = [(Heads,1 % 20),(Tails,1 % 20),(Heads,9 % 20),(Tails,9 % 20)]}
+
+    ghci>  Prob {getProb = [(coin,1 % 10),(coin,9 % 10)]} 
+    Prob {getProb = [(Prob {getProb = [(Heads,1 % 2),(Tails,1 % 2)]},1 % 10),(Prob {getProb = [(Heads,1 % 2),(Tails,1 % 2)]},9 % 10)]}
+
+    ghci>  loadedCoin >>=            \x-> coin                                           >>= \y-> return x
+    Prob {getProb = [(Heads,1 % 20),(Heads,1 % 20),(Tails,9 % 20),(Tails,9 % 20)]}
+

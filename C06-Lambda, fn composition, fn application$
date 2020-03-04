@@ -1,0 +1,100 @@
+Lambdas
+    Lambdas are basically anonymous functions that are used because we need some functions only once. 
+    (\arg1 arg2 arg3 -> functionBody)
+
+
+    map (+3) [1,6,3,2]           mapping with partially applied function
+    map (\x -> x + 3) [1,6,3,2]  mapping with lambda
+
+    Lambdas are normally surrounded by parentheses unless we mean for them to extend all the way to the right. 
+    Here's something interesting: due to the way functions are curried by default, these two are equivalent:
+        addThree x y z = x + y + z  
+        addThree = \x -> \y -> \z -> x + y + z  
+
+    If lambda function is used inside another function f, the lambda has access to the locale variables of f
+
+    elem' y xs = foldLeft' (\acc x -> if x == y then True else acc) False xs  -- the lambda has access to the variable y
+
+
+
+Function application with $
+    normal function application (putting a space between two things) has a really high precedence, the $ function has the
+    lowest precedence. Function application with a space is left-associative (so f a b c is the same as ((f a) b) c)), 
+    function application with $ is right-associative.
+        
+        sum  (map sqrt [1..130])
+        sum $ map sqrt [1..130]
+
+        sqrt  (3 + 4 + 9) 
+        sqrt $ 3 + 4 + 9
+
+    because $ has the lowest precedence of any operator. That's why you can imagine a $ being sort of the equivalent 
+    of writing an opening parentheses and then writing a closing one on the far right side of the expression.
+
+        length  (filter (> 15)  (map length  (map collatzSeq [1..100] ) ) )
+        length $ filter (> 15) $ map length $ map collatzSeq [1..100]   -- function application with $ instead of parentheses
+
+
+
+Function composition
+
+    f . g = \x -> f (g x)
+
+    map (negate . abs) [5,-3,-6,7,-3,2,-19,24]
+        is the same as
+    map (\x -> negate (abs x)) [5,-3,-6,7,-3,2,-19,24] 
+        Or
+    map (\x -> negate $ abs x) [5,-3,-6,7,-3,2,-19,24]
+
+
+
+
+    sum (replicate 5 (max 6.7 8.9)) 
+    can be rewritten as 
+    (sum . replicate 5 . max 6.7) 8.9
+    Or
+    sum . replicate 5 . max 6.7 $ 8.9
+    Or 
+    let fn x = sum . replicate 5 . max 6.7 $ x
+    fn 8.9
+    Or 
+    let fn = sum . replicate 5 . max 6.7
+    fn 8.9
+
+    (sum . replicate 5 . max 6.7) is a function which will take one more parameter
+    It function that takes what max 6.7 takes, and return the result to its outter function replicate 5, Then, a function that
+    takes the result of that and does a sum of it is created.
+
+
+    
+    replicate 100 (product (map (*3) (zipWith max [1,2,3,4,5] [4,5,6,7,8])))
+    can be rewritten as 
+    (replicate 100 . product . map (*3) . zipWith max [1,2,3,4,5])   [4,5,6,7,8]
+    Or
+    replicate 100 . product . map (*3) . zipWith max [1,2,3,4,5]   $ [4,5,6,7,8]
+    Or
+    let fn x = replicate 100 . product . map (*3) . zipWith max [1,2,3,4,5]   $ x
+    fn [4,5,6,7,8]
+    Or
+    let fn = replicate 100 . product . map (*3) . zipWith max [1,2,3,4,5]   
+    fn [4,5,6,7,8]
+
+
+
+    If the expression ends with three parentheses, chances are that if you translate it into function composition, 
+    it'll have three composition operators.
+
+    Making long chains of function composition is discouraged becuase it can be less readable. The prefered style is to use let bindings to give labels to intermediary 
+    results or split the problem into sub-problems and then put it together so that the function makes sense to someone reading it instead of 
+    just making a huge composition chain.
+
+
+    fn x = let creatMaxList = zipWith max [1,2,3,4,5] x
+               multiWith3 =  map (*3) creatMaxList
+               getProduct = product multiWith3
+           in  replicate 100 getProduct
+
+
+
+
+

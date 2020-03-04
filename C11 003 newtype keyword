@@ -1,0 +1,101 @@
+The newtype keyword
+
+The newtype keyword in Haskell is made for cases where we want to just take one type and wrap it in something to present it as another type. 
+
+we saw that there are actually more ways for the list type to be an applicative functor. 
+UseCase1: One way is 
+    ghci> [(+1),(*100),(*5)] <*> [1,2,3]  
+    [2,3,4,100,200,300,5,10,15]  
+UseCase2: The other way is to take the first function on the left side of <*> and apply it to the first value on the right, 
+then take the second and apply it to the second, and so on. 
+    ghci> getZipList $ ZipList [(+1),(*100),(*5)] <*> ZipList [1,2,3]  
+    [2,200,15]  
+
+To implement these 2 behaviour for "List", we made list instance of Applicative to get the first "UseCase1",
+but to get the "UseCase2", we toke "List" and wrap it in "ZipList" to present it as another type. ZipList a is defined like this:
+    newtype ZipList a = ZipList { getZipList :: [a] }  
+
+
+Example:
+
+    newtype CharList = CharList [Char] deriving (Eq, Show) 
+    OR 
+    newtype CharList = CharList { getCharList :: [Char] } deriving (Eq, Show)  
+
+    ghci>  let i = CharList "this will be shown!"  
+
+    ghci>  i
+    CharList {getCharList = "this will be shown!"}
+
+    ghci>  getCharList i          --Notice that by using record syntax (naming the params in the constructor), we can extract the value by using "getCharList"
+    "this will be shown!"
+
+
+
+
+
+data vs newtype vs type
+    data: to create a new type
+    newtype: to create a new type by wrapping an existing type to present it as another type.
+    type: we're not actually making anything new, but we're just making a synonym for an already existing type
+
+    "newtype" is faster than "data" in creating a type, haskell knows that you're just using it to wrap an existing type into a new type (hence the name).
+    "newtype" you can only have one value constructor and that value constructor can only have one field. 
+    "data" you can make data types that have several value constructors and each constructor can have zero or more fields.
+
+
+    type IntList = [Int]  
+    ghci> ([1,2,3] :: IntList) ++ ([1,2,3] :: [Int])  -- works fine
+
+    but
+
+    newtype IntList = IntList { getIntList :: [Int] }  deriving (Eq, Show)
+    ghci> ([1,2,3] :: IntList) ++ ([1,2,3] :: [Int])  -- This does NOT work
+        We can't use ++ to put together a IntList and a list of type [Int]. We can't even use ++ to put together two IntList, 
+        because ++ works only on lists and the IntList type isn't a list, even though it could be said that it contains one. 
+
+
+        We can, however, convert two IntList to lists, ++ them and then convert that back to a IntList
+        ghci>  newtype IntList = IntList { getIntList :: [Int] }  deriving (Eq, Show) -- Notice how we used the record syntax in the newtype "IntList" declarations
+        ghci>  i = IntList [1,2,3]
+        ghci>  j = IntList [1,2,3]
+        ghci>  x= (getIntList i ::[Int])  -- record syntax enable us to get the value of [Int], instead of IntList [Int] i.e i = IntList [1,2,3] but getIntList i = [1,2,3]
+        ghci>  y= (getIntList j ::[Int])
+        ghci>  z= x ++ y
+        ghci>  z
+        [1,2,3,1,2,3]
+        ghci>  res = IntList z
+        ghci>  res
+        IntList {getIntList = [1,2,3,1,2,3]}
+
+    Conclusion:
+         If you just want your type signatures to look cleaner and be more descriptive, you probably want type synonyms. 
+         If you want to take an existing type and wrap it in a new type in order to make it an instance of a type class, chances are you're looking for a newtype. 
+         And if you want to make something completely new, odds are good that you're looking for the data keyword. 
+
+
+
+
+Using newtype can be useful in making somthing instance of Functor:
+    because only type constructors that take exactly one parameter can be made an instance of Functor, 
+    in case of "Map k v" Or "Either a b", we have to partially apply the type constructor until it only takes one type parameter "the last one".
+
+
+    fmap will look like
+    fmap :: (b -> c)  -> Either a b -> Either a c
+    fmap :: (v -> v') -> Map k v    -> Map k v'
+
+
+    what if we want fmap to apply to some other typeParamter than the last one.
+
+    what if we wanted to make the tuple an instance of Functor in such way that when we fmap a function over a tuple, it gets applied to the first component of the tuple? 
+    in such way, fmap (+3) (1,1) would result in (4,1). 
+
+    newtype Pair b a = Pair { getPair :: (a,b) }  
+
+    instance Functor (Pair b) where 
+        fmap f (Pair (x,y)) = Pair (f x, y)  
+
+    ghci> getPair $ fmap (*100) (Pair (2,3))  
+    (200,3)
+

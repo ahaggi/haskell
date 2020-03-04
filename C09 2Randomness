@@ -1,0 +1,61 @@
+
+https://wiki.haskell.org/Cabal/How_to_install_a_Cabal_package
+
+
+mkStdGen function: It takes an integer and based on that, gives us a random generator.
+
+random:
+    random :: (RandomGen g, Random a) => g -> (a, g)
+    Takes a "random generator" and returns a random value and a new "random generator".
+    ghci>  let rGen = mkStdGen 100
+    ghci>  random (rGen) :: (Int, StdGen)
+    (-3633736515773289454,693699796 2103410263)
+
+
+threeCoins :: StdGen -> (Bool, Bool, Bool)
+threeCoins gen =
+    let (firstCoin, newGen)   = random gen         -- NOTICE that we dont need to specify random gen::(Bool, Bool, Bool), becuase we already declared the function returns (firstCoin, secondCoin, thirdCoin) which is (Bool,Bool,Bool) 
+        (secondCoin, newGen') = random newGen
+        (thirdCoin, newGen'') = random newGen'
+    in  (firstCoin, secondCoin, thirdCoin)
+
+
+
+randoms: a function takes a generator and returns an infinite sequence of values based on that generator.
+         it look likes
+         randoms gen = let (value, newGen) = random gen
+                        in value:randoms newGen
+
+randomR: takes a pair of values "the lower and upper bounds" and a "random generator",
+         returns a random value within the bounds and a new "random generator".
+
+         ghci> randomR (1,6) (mkStdGen 359353)
+         (6,1494289578 40692)
+
+
+randomRs: similar to "randoms" but uses "randomR"
+         ghci> take 10 $ randomRs ('a','z') (mkStdGen 3) :: [Char]  
+         "ndkxbvmomg"
+
+
+
+
+import System.Random  
+import Control.Monad(when)  
+
+main = do
+    gen <- getStdGen
+    askForNumber gen
+
+askForNumber :: StdGen -> IO ()
+askForNumber gen = do
+    let (randNumber, newGen) = randomR (1,10) gen :: (Int, StdGen)
+    putStr "Which number in the range from 1 to 10 am I thinking of? "
+    numberString <- getLine
+    when (not $ null numberString) $ do
+        let number = read numberString
+        if randNumber == number
+            then putStrLn "You are correct!"
+            else putStrLn $ "Sorry, it was " ++ show randNumber
+        askForNumber newGen
+
