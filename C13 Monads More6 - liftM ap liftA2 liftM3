@@ -1,0 +1,508 @@
+
+So every monad is an applicative functor and every applicative functor is a functor. 
+The Applicative type class has a class constraint such that our type has to be an instance of Functor before we can make it 
+an instance of Applicative. 
+
+But even though Monad should have the same constraint for Applicative, as every monad is an applicative functor, it doesn't, 
+because the Monad type class was introduced to Haskell way before Applicative. 
+
+
+liftM = fmap 
+    fmap  :: (Functor f) => (a -> b) -> f a -> f b
+
+    liftM :: (Monad m)   => (a -> b) -> m a -> m b  
+    liftM f m = m >>= (\x -> return (f x))  
+
+
+
+    Even though "liftM" is for monad, we can used for any Applicative/Functor  
+
+    ghci> liftM (*3) (Just 8)
+    ghci> fmap  (*3) (Just 8)
+    Just 24
+
+    ghci> runWriter $ liftM not $ Writer (True, "chickpeas")
+    (False,"chickpeas")
+    ghci> runWriter $ fmap not $ Writer (True, "chickpeas")
+    (False,"chickpeas")
+
+
+
+
+
+    liftM with statefulComputation 
+        liftM fn (res, state)   ,, liftM = fmap
+
+        The "fn" will be applied to the "res"
+
+        ghci>  let someStatefulComputation = state $ \s -> (1,s)
+
+        ghci>  (runState  someStatefulComputation) "someState"
+        (1,"someState")
+
+        ghci>  (runState ( liftM (+100)  someStatefulComputation )) "someState"
+        (101,"someState")
+
+        ghci> (runState (pop)) [1,2,3,4]
+        (1,[2,3,4])  
+        ghci> (runState (liftM (+100) pop)) [1,2,3,4]
+        (101,[2,3,4])  
+        ghci> (runState (fmap (+100) pop)) [1,2,3,4]
+        (101,[2,3,4])
+
+
+
+
+    liftM with the monadic form of "a value with an attached monoid" i.e. "Writer"
+
+        ghci>  runWriter $ writer (1, "This is some log")
+        (1,"This is some log")
+
+        ghci>  runWriter $ liftM (+100) $ writer (1, "This is some log")
+        ghci>  runWriter $ fmap (+100)  $writer (1, "This is some log")
+        (101,"This is some log")
+
+
+
+ap 
+
+just like fmap, <*> can also be implemented by using only what the Monad type class give us. The "ap" function is basically <*>
+
+    ghci>   [(+),(*)] <*> [1,2]    <*>   [10,100]
+
+    ghci>   ([(+),(*)] <*> [1,2]) `ap`   [10,100]
+    ghci>   [(+),(*)] `ap` [1,2]  `ap`   [10,100]
+    [11,101,12,102,10,100,20,200]
+
+
+When defining our own monad instance:
+
+    Becuase of "Monad" does NOT have a constraint such that "someType" has to be an instance of Applicative first, we can make "someType" 
+    instance of Monad first, and then make it an instance of 
+    - Functor by just saying that "fmap" is liftM. 
+    - Applicative by just saying that "pure" is "return" and <*> is ap. 
+
+
+
+
+
+When dealing with Functors, we can replace all the    `fmap` with   <$>   or   `liftM` 
+When dealing with Applicatives, we can replace all the <*>   with   `ap`
+
+
+liftA2  f x y = f <$> x <*> y  
+    applying a function between two applicative values  
+    (+) <$> (+3) <*> (*100) $ 5
+    liftA2 (+) (+3) (*100) 5
+
+liftM2 the same as liftA2 only it has a Monad constraint. There also exist liftM3 and liftM4 and liftM5.
+
+liftM3 (\x y z -> [x,y,z]) (+3)  (*2) (/2) $ 5
+
+(\x y z -> [x,y,z]) <$> (+3) <*> (*2) <*> (/2) $ 5                -- Using Applicative-function
+
+( (+3) >>= \x-> (*2) >>= \y-> (/2) >>= \z->  return [x,y,z])  5   -- Using Monad-function
+
+
+
+
+
+We can replace all the `fmap` with <$> or `liftM`
+We can replace all the <*> with `ap`
+
+
+
+Remember that: 
+    fmap  has infixity of infixl 9
+    <$>   has infixity of infixl 4
+    (.)   has infixity of infixr 9   ,, OBSOBS infixRight, where (.) is composition
+
+    so,
+    (+)  `fmap` (+3) `ap` (*100) $ 5         OK!
+    (+)    .    (+3) `ap` (*100) $ 5         won't work, the `ap` will excute before the "."
+    ( (+)  .  (+3) ) `ap` (*100) $ 5         OK!
+    (+)   <$>   (+3) `ap` (*100) $ 5         won't work, cannot mix ‘.’ [infixr 9] and ‘ap’ [infixl 9] in the same infix expression
+    ( (+) <$> (+3) ) `ap` (*100) $ 5         OK!
+
+liftA2  f x y = f <$> x <*> y  
+    applying a function between two applicative values  
+    (+) <$> (+3) <*> (*100) $ 5
+    liftA2 (+) (+3) (*100) 5
+
+
+
+liftM2 the same as liftA2 only it has a Monad constraint. There also exist liftM3 and liftM4 and liftM5.
+
+
+
+
+*********************************************************************************************************
+
+
+Flattening nested Monadic values
+The join function
+
+
+    join :: (Monad m) => m (m a) -> m a  
+    join mm = do  
+        m <- mm  
+        m  
+
+
+    What if we have 
+        [[1,2,3],[4,5,6],[7,8,9]]
+
+        Just (Just 9)
+
+        writer (writer (1,"aaa"),"bbb")
+    can we flatten them out? Yes,,
+
+    ghci>  join [[1,2,3],[4,5,6],[7,8,9]]
+    [1,2,3,4,5,6,7,8,9]
+
+    ghci> join Just (Just 9)
+    Just 9
+
+    ghci>  join (Right (Right 9)) :: Either String Int  
+    Right 9
+
+
+    ghci>   let innerWriter = (writer (1," InnerWriter!") :: Writer String Int)
+    ghci>   let outerWriter = (writer ( innerWriter,"OuterWriter!") :: Writer String ( Writer String Int) )
+    ghci>  runWriter $ join outerWriter
+    (1,"OuterWriter! InnerWriter!")       -- notice how it "mappend"-ed the monoid values of the outerWriter and innerWriter
+
+
+
+    But notice that:
+
+        list of list of list ==> become list of list
+        ghci>  join [  [[1,2], [3,4]],  [[5,6], [7,8]],  [[9,0], [1,2]]  ]
+        [[1,2],[3,4],[5,6],[7,8],[9,0],[1,2]]
+
+        ghci>  join (Just ( Just ( Just 9) ))
+        Just (Just 9)
+
+
+        ghci> join [  [[1,2], [3,4]]  ,  [[5,6], [7,8]]  ,  [[9,0], []]  ]
+        [[1,2],[3,4],[5,6],[7,8],[9,0],[]]
+
+        ghci>  join (Just ( Just (Nothing) ))
+        Just Nothing
+
+
+        ghci> join Nothing
+        Nothing
+        ghci>  join []
+        []
+
+
+        and these will cuase an error
+        ghci>  join (Just 9)        -- error
+        ghci>  join [1,2]           -- error
+        ghci>  concat [1,2]         -- error
+
+
+        ghci>  join (Right (Right (Right 9))) :: Either Int (Either String Int) 
+        Right (Right 9)
+
+        ghci> (runState (join (State $ \s -> (push 10,1:2:s)))) [0,0,0]  
+        ((),[10,1,2,0,0,0])  
+            Explaination:
+                It first runs the outer stateful computation and then the inner one. 
+
+
+                ghci>  innerStateful a = ((state $ \xs -> ((), a : xs)):: State Stack () ) -- this is the push function
+                ghci>  (runState (innerStateful 10)) []
+                ((),[10])
+
+
+                ghci>  outerStateful = ((state $ \xs -> (  innerStateful 10 , 1:2:xs)):: State Stack (State Stack ()) ) --statefulComputation which its res is another statefulComputation
+                
+                    ghci>  let i = (runState   (outerStateful)) [0,0,0]
+                    -- i = (innerStateful 10 , [1,2,0,0,0])
+                    ghci>  (runState (fst i)) (snd i)  -- (fst i = innerStateful 10) and (snd i = [1,2,0,0,0])
+                    ((),[10,1,2,0,0,0])
+
+
+
+                ghci>  runState (join (outerStateful)) [0,0,0]
+                ((),[10,1,2,0,0,0])
+
+    We know that the bind operator ">>=" extracts a value from the "monadic-box" and feeds it to some function.
+    this is the same thing as just mapping that function over the value and then using join to flatten the resulting nested monadic value
+
+    m >>= f is always the same thing as join (fmap f m)! 
+
+        join mm = do  
+            m <- mm  
+            m  
+        join mm = mm >>= \m-> m 
+
+
+
+    ghci>  Just 9 >>= \x-> Just x
+
+    ghci>  join (fmap (\x-> Just x) (Just 9)) 
+    Just 9
+
+
+
+
+    ghci>  runState (pop >>= \prevRes-> pop) [1,2]
+    ghci>  runState  ( do {currentRes<- pop; pop } ) [1,2]
+
+    ghci>  runState (join (fmap (\prevRes-> pop) pop)) [1,2]
+    (2,[])
+
+
+*********************************************************************************************************
+
+
+filterM
+
+    We know how "filter" works, it takes a predicate and a list to filter out and then returns 
+    a new list where only the elements that satisfy the predicate are kept
+
+    ghci>  filter (<5) [1,2,3,4,5,6,7,8,9]
+    [1,2,3,4]
+
+    The predicate takes an element of the list and returns a Bool value. 
+        "filter (func returns Bool value) list"
+    Now, what if the Bool value that it returned was actually wrapped in a monadic value? 
+
+
+    If the monadic value is Maybe, we can do the flwg:
+        1- replace the predicate (<5) which return (True/Flase), with (\x-> if (x<5) then (Just True), but "filter" does not deal with monadic values.
+        2- use "filterM" instead of "filter"
+            ghci>  filterM (\x-> if (x<5) then (Just True) else (Just False) ) [1,2,3,4,5,6,7,8,9]
+            Just [1,2,3,4]
+            But how to unwrap the monadic value "Just [1,2,3,4]" to be " [1,2,3,4] ".
+        3- use "maybe" function, it takes minimumContext of the value inside the "Maybe" and the "Maybe" value. It returns the value unwrapped.
+            ghci>  maybe [] id (filterM (\x-> if (x<5) then (Just True) else (Just False) ) [1,2,3,4,5,6,7,8,9])
+            [1,2,3,4]
+
+
+    The same for a function which returns the monadic value "Writer"
+        keepSmall x = (writer ( (x<5)  , if(x<5) 
+                                            then ["Keeping " ++ show x] 
+                                            else  [show x ++ " is too large, throwing it away"]   
+                                ) )::Writer [String] Bool
+
+
+        keepSmall' :: Int -> Writer [String] Bool  
+        keepSmall' x  
+                | x < 5 = do  
+                    tell ["Keeping " ++ show x]  
+                    return True          -- (True,[""])
+                | otherwise = do  
+                    tell [show x ++ " is too large, throwing it away"]  
+                    return False         -- (False,[""])
+
+
+        ghci>  keepSmall 2
+        WriterT (Identity --(True,["Keeping 2"]))
+
+
+        ghci>  runWriter $ keepSmall 2
+        (True,["Keeping 2"])
+
+
+        ghci>  fst $ runWriter $ filterM keepSmall [1,2,3,4,5,6,7,8,9]
+        [1,2,3,4]
+
+
+        ghci>  runWriter $ filterM keepSmall [1,2,3,4,5,6,7,8,9]
+        ([1,2,3,4],["Keeping 1","Keeping 2","Keeping 3","Keeping 4","5 is too large, throwing it away","6 is too large, throwing it away","7 is too large, throwing it away","8 is too large, throwing it away","9 is too large, throwing it away"])
+
+
+        ghci>  mapM_ putStrLn $ snd $ runWriter $ filterM keepSmall [1,2,3,4,5,6,7,8,9]
+        Keeping 1
+        Keeping 2
+        Keeping 3
+        Keeping 4
+        5 is too large, throwing it away
+        6 is too large, throwing it away
+        7 is too large, throwing it away
+        8 is too large, throwing it away
+        9 is too large, throwing it away
+
+
+*********************************************************************************************************
+
+
+foldM
+
+    We know how "filter" works, it takes a binary function, a starting accumulator and a list to fold up 
+    and then folds it from the left into a single value.
+
+    foldl (\acc x-> x + acc) 0 [1,2,3,4,5,6,7,8,9]
+
+    foldl (binaryFunction) acc "list"
+    The binaryFunction takes a "acc and an elem from list" and returns a single value of the "acc" type
+    What if the binaryFunction returns a value that it was actually wrapped in a monadic value?
+
+    sumMaybes acc x = Just (acc + x)  
+    ghci>  foldM sumMaybes 0  [1,2,3,4,9,5,6,7,8]
+    Just 45
+
+        Notice that for the 1.st elem the acc will be a normal value, but from the 2.nd to the end the acc will be monadic value
+        and foldM will unwrap the "acc" and feed it to the function.
+
+    sumSmalls: C13_006.hs
+    ghci>  foldM sumSmalls 0  [1,2,3,4,9,5,6,7,8]
+    Just 15
+
+
+    what if we wanted to sum a list of numbers but with the added condition that if any number is greater than 9 in the list, 
+    the whole thing fails? 
+
+    binSmalls acc x | x > 5     = Nothing | otherwise = Just (acc + x)
+
+
+
+
+
+Making a safe RPN calculator
+
+    The accumulator of the fold is [], as the folding function went over the RPN expression, 
+    if the current item was an operator, it took two items off the top of the stack, applied the operator between 
+    them and then put the result back on the stack.
+    If the current item was a string that represented a number, it takes out the string and replaces it with an actual number.
+
+
+    "reads" is a function like "read"-function , only it returns a list with a single element in case of a successful read. it also returns the part 
+    of the string that it didn't consume. 
+    If it fails to read something, then it returns an empty list. 
+
+        ghci>  reads "4abc" ::[(Int, String)]
+        [(4,"abc")]
+        ghci>  reads "abc4" ::[(Int, String)]
+        []
+        ghci>  reads "abc4" ::[(Int, String)]
+        []
+        ghci>  reads "4" ::[(Int, String)]
+        [(4,"")]
+
+
+    So, let's make our folding function into a monadic function that can fail
+
+    readMaybe st = case reads st of [(x,"")] -> Just x  
+                                _ -> Nothing  
+
+    we will change 
+        ...
+       foldingFunction xs numberString = read numberString:xs  
+    to
+        ...
+       foldingFunction xs numberString = liftM (:xs) (readMaybe numberString) -- liftM == fmap
+    
+    ghci>   liftM (:[1,2,3]) (Just 10)  -- liftM == fmap
+    Just [10,1,2,3]
+    ghci>   liftM (:[1,2,3]) (Nothing)
+    Nothing
+
+
+    solveRPN st = do  
+                [result] <- foldM foldingFunction [] (words st)  
+                return result  
+
+    foldM foldingFunction [] (words st) , returns Just[Double]/Nothing. To convert that to "Just(Double)/Nothing" we used "do-notation"
+    i.e. Just[10.0]   To   "just 10.0"
+
+    ghci>  foldM foldingFunction [] (words "15 4 3 + 2 * -")
+    Just [1.0]
+
+    ghci>  solveRPN "15 4 3 + 2 * -"
+    Just 1.0
+
+    Notice that after reading each elem "foldingFunction" will returns "Just[Double]/Nothing", and foldM will unwrap that to be [Double] and 
+    set the acc = [Double] before reading the next elem.
+    
+
+
+
+
+**********************************************************************************************************************************************
+
+
+
+
+
+Composing monadic functions 
+
+Composing 2 functions that returns "monadicValues"
+
+    Composing two functions which return normal values, is implemented like so:
+
+              f           g           f.g
+    (.) :: (b -> c) -> (a -> b) -> (a -> c)  
+    f . g = (\x -> f (g x))  
+
+
+    what if those two functions returns monadicValues?
+    We can use  (<=<)
+        (<=<) :: (Monad m) => (b -> m c) -> (a -> m b) -> (a -> m c)  
+        f <=< g = (\x -> g x >>= f)
+
+        ghci> let f x = [x,-x]
+        ghci> let g x = [x*3,x*2]
+        ghci> let h   = f <=< g  
+        ghci>  h = (\x -> g x            >>= f) 3
+                         [9,6]       concat (fmap f [9,6]) 
+
+        ghci>  h 3
+        [9,-9,6,-6]
+
+        Notice how both "f" and "g" returns the monadic value of type list
+        For more general monadic form, we can use return.
+
+        ghci>  let f x = return (x/2)
+        ghci>  let g x =  return (x*5)
+        ghci>  let h = f <=< g
+
+        and when feeding a value to "h", it has to be monadic
+            ghci>  Just 3 >>= h
+            Just 7.5
+            ghci>  [3] >>= h
+            [7.5]
+            ghci>  Right 3 >>= h
+            Right 7.5
+
+        Otherwise the res will be non-monadic value "normal value" 
+        ghci>  h 3
+        7.5
+
+
+
+    If we have a bunch of functions in a list, we can compose them all into one big function by just using "id" as the starting 
+    accumulator and the "." function as the binary function.
+
+        ghci>  let f = foldr (.) id [(+1),(*100),(+2)]  
+        ghci>  f 1
+        301
+
+        ghci>  ((\x->x) . (+1) . (*100) . (+2)) 1
+        301
+
+    But if we have functions which returns monadicValues
+        we use "<=<"    instead of "." as the binaryFunction, and 
+        we use "return" instead of "id" as a starting acc  
+
+        ghci>  let f x = return (x/2)
+        ghci>  let g x =  return (x*5)
+        ghci>  h = foldr (<=<) (return) [ f , g ] 
+
+        and when feeding a value to "h" it has to be monadic
+            ghci>  Just 3 >>= h
+            Just 7.5
+            ghci>  [3] >>= h
+            [7.5]
+            ghci>  Right 3 >>= h
+            Right 7.5
+
+        Otherwise the res will be non-monadic value "normal value" 
+        ghci>  h 3
+        7.5
+
+    
